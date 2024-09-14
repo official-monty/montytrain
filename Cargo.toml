@@ -1,0 +1,8 @@
+[package]
+name = "montytrain"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+montyformat = { git = 'https://github.com/official-monty/montyformat.git', tag = "v0.2.0" }
+tch = "0.17.0"
