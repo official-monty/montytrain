@@ -8,29 +8,53 @@ pub const DEST_SUBNETS: i64 = 64;
 pub const OUTPUTS: i64 = FROM_SUBNETS * DEST_SUBNETS;
 
 #[derive(Debug)]
+pub struct SubNet<const SUBNETS: i64> {
+    l1: nn::Linear,
+}
+
+impl<const SUBNETS: i64> SubNet<SUBNETS> {
+    fn new(vs: &nn::Path) -> Self {
+        let hl = EMBED_SIZE * SUBNETS;
+
+        Self {
+            l1: nn::linear(vs, INPUTS, hl, Default::default()),
+        }
+    }
+
+    fn forward(&self, xs: &Tensor, batch_size: i64) -> Tensor {
+        xs.apply(&self.l1)
+            .relu()
+            .reshape([batch_size, SUBNETS, EMBED_SIZE])
+    }
+}
+
+#[derive(Debug)]
 pub struct PolicyNetwork {
-    from_subnet_l1: nn::Linear,
-    dest_subnet_l1: nn::Linear,
+    from_subnets: SubNet<FROM_SUBNETS>,
+    dest_subnets: SubNet<DEST_SUBNETS>,
 }
 
 impl PolicyNetwork {
     pub fn new(vs: &nn::Path) -> Self {
-        const FROM_HL: i64 = EMBED_SIZE * FROM_SUBNETS;
-        const DEST_HL: i64 = EMBED_SIZE * DEST_SUBNETS;
-
         Self {
-            from_subnet_l1: nn::linear(vs, INPUTS, FROM_HL, Default::default()),
-            dest_subnet_l1: nn::linear(vs, INPUTS, DEST_HL, Default::default()),
+            from_subnets: SubNet::new(vs),
+            dest_subnets: SubNet::new(vs),
         }
     }
 
     pub fn forward_raw(&self, xs: &Tensor, batch_size: i64) -> Tensor {
-        let froms = xs.apply(&self.from_subnet_l1).relu().reshape([batch_size, FROM_SUBNETS, EMBED_SIZE]);
+        let froms = self.from_subnets.forward(xs, batch_size);
+        let dests = self.dest_subnets.forward(xs, batch_size);
 
-        let dests = xs.apply(&self.dest_subnet_l1).relu().reshape([batch_size, EMBED_SIZE, DEST_SUBNETS]);
-
-        froms.matmul(&dests).reshape([batch_size, FROM_SUBNETS * DEST_SUBNETS])
+        attention(&froms, &dests, batch_size)
     }
+}
+
+fn attention(froms: &Tensor, dests: &Tensor, batch_size: i64) -> Tensor {
+    assert_eq!(&froms.size(), &[batch_size, FROM_SUBNETS, EMBED_SIZE]);
+    assert_eq!(&dests.size(), &[batch_size, EMBED_SIZE, DEST_SUBNETS]);
+
+    froms.matmul(dests).reshape([batch_size, FROM_SUBNETS * DEST_SUBNETS])
 }
 
 pub fn map_policy_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
