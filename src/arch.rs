@@ -41,21 +41,20 @@ impl PolicyNetwork {
     }
 
     pub fn forward_raw(&self, xs: &Tensor, batch_size: i64) -> Tensor {
-        let froms = self.from_subnets.forward(xs, batch_size)
-            .reshape([batch_size, FROM_SUBNETS, EMBED_SIZE]);
-
-        let dests = self.dest_subnets.forward(xs, batch_size)
-            .reshape([batch_size, EMBED_SIZE, FROM_SUBNETS]);
+        let froms = self.from_subnets.forward(xs, batch_size);
+        let dests = self.dest_subnets.forward(xs, batch_size);
 
         attention(&froms, &dests, batch_size)
     }
 }
 
 fn attention(froms: &Tensor, dests: &Tensor, batch_size: i64) -> Tensor {
-    assert_eq!(&froms.size(), &[batch_size, FROM_SUBNETS, EMBED_SIZE]);
-    assert_eq!(&dests.size(), &[batch_size, EMBED_SIZE, DEST_SUBNETS]);
+    let froms = froms.reshape([batch_size, FROM_SUBNETS, EMBED_SIZE]);
+    let dests = dests.reshape([batch_size, EMBED_SIZE, FROM_SUBNETS]);
 
-    froms.matmul(dests).reshape([batch_size, FROM_SUBNETS * DEST_SUBNETS])
+    froms
+        .matmul(&dests)
+        .reshape([batch_size, FROM_SUBNETS * DEST_SUBNETS])
 }
 
 pub fn map_policy_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
@@ -85,6 +84,6 @@ pub fn map_policy_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
 }
 
 pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
-    let flip = if pos.stm() == Side::BLACK {56} else {0};
+    let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
     usize::from(64 * (mov.src() ^ flip) + (mov.to() ^ flip))
 }

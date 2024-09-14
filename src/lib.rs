@@ -4,7 +4,10 @@ mod rng;
 
 use arch::PolicyNetwork;
 use loader::DataLoader;
-use tch::{nn::{self, Optimizer, OptimizerConfig}, Device, Kind, TchError, Tensor};
+use tch::{
+    nn::{self, Optimizer, OptimizerConfig},
+    Device, Kind, TchError, Tensor,
+};
 
 use std::{io::Write, time::Instant};
 
@@ -50,7 +53,7 @@ pub fn train(
 
     let mut lr = lr_start;
 
-    let mut opt = nn::Adam::default().build(&vs, lr.into())?; 
+    let mut opt = nn::Adam::default().build(&vs, lr.into())?;
 
     let mut running_error = 0.0;
     let mut sb = 0;
