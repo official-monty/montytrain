@@ -41,6 +41,7 @@ impl DataLoader {
             output_batch_indices: Vec::with_capacity(self.batch_size * 256),
             output_indices: Vec::with_capacity(self.batch_size * 256),
             output_values: Vec::with_capacity(self.batch_size * 256),
+            mask_indices: Vec::with_capacity(self.batch_size * 256),
         };
 
         'dataloading: loop {
@@ -58,13 +59,12 @@ impl DataLoader {
                     println!("#[Running Batches]");
                     for batch in shuffle_buffer.chunks(self.batch_size) {
                         let (xs, legal_mask, targets) = get_tensors(batch, &mut preallocs);
-                        
-                        let should_break = f(
-                            &xs.to_device(self.device),
-                            &legal_mask.to_device(self.device),
-                            &targets.to_device(self.device).to_dense(None, true),
-                            batch.len(),
-                        );
+
+                        let xs = &xs.to_device(self.device);
+                        let legal_mask = &legal_mask.to_device(self.device).to_dense(None, true).logical_not();
+                        let targets = &targets.to_device(self.device).to_dense(None, true);
+
+                        let should_break = f(xs, legal_mask, targets, batch.len());
 
                         if should_break {
                             break 'dataloading;
@@ -122,6 +122,7 @@ struct PreAllocs {
     output_batch_indices: Vec<i64>,
     output_indices: Vec<i64>,
     output_values: Vec<f32>,
+    mask_indices: Vec<i64>,
 }
 
 fn get_tensors(batch: &[DecompressedData], preallocs: &mut PreAllocs) -> (Tensor, Tensor, Tensor) {
@@ -132,8 +133,7 @@ fn get_tensors(batch: &[DecompressedData], preallocs: &mut PreAllocs) -> (Tensor
     preallocs.output_batch_indices.clear();
     preallocs.output_indices.clear();
     preallocs.output_values.clear();
-
-    let mut masks = vec![true; batch_size * arch::OUTPUTS as usize];
+    preallocs.mask_indices.clear();
 
     for (i, point) in batch.iter().enumerate() {
         arch::map_policy_inputs(&point.pos, |feat| {
@@ -151,9 +151,8 @@ fn get_tensors(batch: &[DecompressedData], preallocs: &mut PreAllocs) -> (Tensor
         for value in &point.moves[..point.num] {
             let mov = Move::from(value.0);
             let move_idx = arch::map_move_to_index(&point.pos, mov);
-            let idx = arch::OUTPUTS as usize * i + move_idx;
             
-            masks[idx] = false;
+            preallocs.mask_indices.push(move_idx as i64);
             preallocs.output_batch_indices.push(i as i64);
             preallocs.output_indices.push(move_idx as i64);
             preallocs.output_values.push(f32::from(value.1) / total);
@@ -165,7 +164,10 @@ fn get_tensors(batch: &[DecompressedData], preallocs: &mut PreAllocs) -> (Tensor
     let indices = Tensor::from_slice2(&[&preallocs.batch_indices, &preallocs.feat_indices]);
     let xs = Tensor::sparse_coo_tensor_indices_size(&indices, &values, [batch_size as i64, arch::INPUTS], (Kind::Float, Device::Cpu), true);
 
-    let legal_mask = Tensor::from_slice(&masks).reshape([batch_size as i64, arch::OUTPUTS]);
+    let total_moves = preallocs.output_batch_indices.len();
+    let values = Tensor::from_slice(&vec![true; total_moves]);
+    let indices = Tensor::from_slice2(&[&preallocs.output_batch_indices, &preallocs.mask_indices]);
+    let legal_mask = Tensor::sparse_coo_tensor_indices_size(&indices, &values, [batch_size as i64, arch::OUTPUTS], (Kind::Float, Device::Cpu), false);
 
     let values = Tensor::from_slice(&preallocs.output_values);
     let indices = Tensor::from_slice2(&[&preallocs.output_batch_indices, &preallocs.output_indices]);
