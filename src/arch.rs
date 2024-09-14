@@ -2,7 +2,7 @@ use montyformat::chess::{Move, Piece, Position, Side};
 use tch::{nn, Tensor};
 
 pub const INPUTS: i64 = 768;
-pub const EMBED_SIZE: i64 = 16;
+pub const EMBED_SIZE: i64 = 64;
 pub const FROM_SUBNETS: i64 = 64;
 pub const DEST_SUBNETS: i64 = 64;
 pub const OUTPUTS: i64 = FROM_SUBNETS * DEST_SUBNETS;
