@@ -2,7 +2,7 @@ use montyformat::chess::{Move, Piece, Position, Side};
 use tch::{nn, Tensor};
 
 pub const INPUTS: i64 = 768;
-pub const EMBED_SIZE: i64 = 64;
+pub const EMBED_SIZE: i64 = 16;
 pub const FROM_SUBNETS: i64 = 64;
 pub const DEST_SUBNETS: i64 = 64;
 pub const OUTPUTS: i64 = FROM_SUBNETS * DEST_SUBNETS;
@@ -21,10 +21,8 @@ impl<const SUBNETS: i64> SubNet<SUBNETS> {
         }
     }
 
-    fn forward(&self, xs: &Tensor, batch_size: i64) -> Tensor {
-        xs.apply(&self.l1)
-            .relu()
-            .reshape([batch_size, SUBNETS, EMBED_SIZE])
+    fn forward(&self, xs: &Tensor, _batch_size: i64) -> Tensor {
+        xs.apply(&self.l1).relu()
     }
 }
 
@@ -43,8 +41,11 @@ impl PolicyNetwork {
     }
 
     pub fn forward_raw(&self, xs: &Tensor, batch_size: i64) -> Tensor {
-        let froms = self.from_subnets.forward(xs, batch_size);
-        let dests = self.dest_subnets.forward(xs, batch_size);
+        let froms = self.from_subnets.forward(xs, batch_size)
+            .reshape([batch_size, FROM_SUBNETS, EMBED_SIZE]);
+
+        let dests = self.dest_subnets.forward(xs, batch_size)
+            .reshape([batch_size, EMBED_SIZE, FROM_SUBNETS]);
 
         attention(&froms, &dests, batch_size)
     }
