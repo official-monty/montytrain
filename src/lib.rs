@@ -9,7 +9,7 @@ use tch::{nn::{self, OptimizerConfig}, Device, TchError, Tensor};
 use std::{io::Write, time::Instant};
 
 const BATCH_SIZE: usize = 16_384;
-const BPSB: usize = 1024;
+const BPSB: usize = 32;
 
 pub fn train(
     buffer_size_mb: usize,
@@ -23,38 +23,33 @@ pub fn train(
     let vs = nn::VarStore::new(device);
     let net = PolicyNetwork::new(&vs.root());
 
-    let mut opt = nn::Adam::default().build(&vs, 1e-3)?; 
-
     let mut lr = lr_start;
+
+    let mut opt = nn::Adam::default().build(&vs, lr.into())?; 
 
     let mut running_error = 0.0;
     let mut sb = 0;
     let mut batch_no = 0;
 
-    let data_loader = DataLoader::new(data_path.as_str(), buffer_size_mb, BATCH_SIZE);
+    let data_loader = DataLoader::new(data_path.as_str(), buffer_size_mb, BATCH_SIZE, device);
 
     let mut t = Instant::now();
 
     data_loader.map_batches(|xs, legal_mask, targets, batch_size| {
-        let fwd = net.forward(&xs.to_device(device), &legal_mask.to_device(device), batch_size as i64);
+        let fwd = net.forward(xs, legal_mask, batch_size as i64);
 
-        println!("forward");
-        println!("{:?}", fwd.size());
+        let loss = fwd
+            .cross_entropy_loss::<Tensor>(targets, None, tch::Reduction::Sum, -100, 0.0)
+            .divide_scalar(batch_size as f64);
 
-        println!("loss");
-        println!("{:?}", targets.size());
-        let loss = fwd.cross_entropy_loss::<Tensor>(&targets.to_device(device), None, tch::Reduction::Mean, -100, 0.0);
-        println!("{:?}", loss.size());
-
-        println!("loss: {}", loss);
-
-        println!("backprop");
         opt.backward_step(&loss);
 
-        running_error += loss.double_value(&[0]);
+        let this_loss = f32::try_from(loss).unwrap();
+        running_error += this_loss;
+
         batch_no += 1;
         print!(
-            "> Superbatch {}/{superbatches} Batch {}/{BPSB}\r",
+            "> Superbatch {}/{superbatches} Batch {}/{BPSB} Current Loss {this_loss:.6}\r",
             sb + 1,
             batch_no % BPSB,
         );
@@ -67,7 +62,7 @@ pub fn train(
             sb += 1;
             println!(
                 "> Superbatch {sb}/{superbatches} Running Loss {} Time {:.2}s",
-                running_error / (BPSB * BATCH_SIZE) as f64,
+                running_error / BPSB as f32,
                 elapsed,
             );
 
@@ -89,10 +84,11 @@ pub fn train(
                 lr = lr_start * decay_factor.powf(sb as f32);
             }
             println!("Dropping LR to {lr}");
+            opt.set_lr(lr.into());
 
-            if sb % 10 == 0 {
+            //if sb % 10 == 0 {
                 vs.save(format!("checkpoints/policy-{sb}.pt").as_str()).unwrap();
-            }
+            //}
 
             sb == superbatches
         } else {

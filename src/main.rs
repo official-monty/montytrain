@@ -9,8 +9,8 @@ fn main() {
         buffer_size_mb,
         "data/policygen6.binpack".to_string(),
         32,
-        0.001,
-        0.000001,
+        0.1,
+        0.01,
         32,
     ).unwrap();
 }

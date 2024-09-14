@@ -1,7 +1,7 @@
 use std::{fs::File, io::BufReader};
 
 use montyformat::{chess::{Move, Position}, MontyFormat};
-use tch::Tensor;
+use tch::{Device, Tensor};
 
 use crate::{arch, rng::Rand};
 
@@ -16,14 +16,16 @@ pub struct DataLoader {
     file_path: String,
     buffer_size: usize,
     batch_size: usize,
+    device: Device,
 }
 
 impl DataLoader {
-    pub fn new(path: &str, buffer_size_mb: usize, batch_size: usize) -> Self {
+    pub fn new(path: &str, buffer_size_mb: usize, batch_size: usize, device: Device) -> Self {
         Self {
             file_path: path.to_string(),
             buffer_size: buffer_size_mb * 1024 * 1024 / std::mem::size_of::<DecompressedData>() / 2,
             batch_size,
+            device,
         }
     }
 
@@ -51,7 +53,7 @@ impl DataLoader {
 
                         let mut inputs = vec![0f32; batch_size * arch::INPUTS as usize];
                         let mut masks = vec![true; batch_size * arch::OUTPUTS as usize];
-                        let mut outputs = vec![0.0; batch_size * arch::OUTPUTS as usize];
+                        let mut outputs = vec![0f32; batch_size * arch::OUTPUTS as usize];
 
                         for (i, point) in batch.iter().enumerate() {
                             arch::map_policy_inputs(&point.pos, |feat| inputs[arch::INPUTS as usize * i + feat] = 1.0);
@@ -61,23 +63,21 @@ impl DataLoader {
                                 total += value.1;
                             }
 
-                            let total = f64::from(total);
-
-                            let flip = if point.pos.stm() == 1 { 56 } else { 0 };
+                            let total = f32::from(total);
 
                             for value in &point.moves[..point.num] {
                                 let mov = Move::from(value.0);
-                                let move_idx = usize::from(64 * mov.src() + (mov.to() ^ flip));
+                                let move_idx = arch::map_move_to_index(&point.pos, mov);
                                 let idx = arch::OUTPUTS as usize * i + move_idx;
                                 
                                 masks[idx] = false;
-                                outputs[idx] += f64::from(value.1) / total;
+                                outputs[idx] += f32::from(value.1) / total;
                             }
                         }
 
-                        let xs = Tensor::from_slice(&inputs).reshape([batch_size as i64, arch::INPUTS]);
-                        let legal_mask = Tensor::from_slice(&masks).reshape([batch_size as i64, arch::OUTPUTS]);
-                        let targets = Tensor::from_slice(&outputs).reshape([batch_size as i64, arch::OUTPUTS]);
+                        let xs = Tensor::from_slice(&inputs).reshape([batch_size as i64, arch::INPUTS]).to_device(self.device);
+                        let legal_mask = Tensor::from_slice(&masks).reshape([batch_size as i64, arch::OUTPUTS]).to_device(self.device);
+                        let targets = Tensor::from_slice(&outputs).reshape([batch_size as i64, arch::OUTPUTS]).to_device(self.device);
 
                         let should_break = f(&xs, &legal_mask, &targets, batch_size);
 
