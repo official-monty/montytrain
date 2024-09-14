@@ -1,7 +1,7 @@
 use std::{fs::File, io::BufReader};
 
 use montyformat::{chess::{Move, Position}, MontyFormat};
-use tch::{Device, Tensor};
+use tch::{Device, Kind, Tensor};
 
 use crate::{arch, rng::Rand};
 
@@ -54,7 +54,7 @@ impl DataLoader {
                         let should_break = f(
                             &xs.to_device(self.device),
                             &legal_mask.to_device(self.device),
-                            &targets.to_device(self.device),
+                            &targets.to_device(self.device).to_dense(None, true),
                             batch.len(),
                         );
 
@@ -111,12 +111,20 @@ fn parse_into_buffer(game: MontyFormat, buffer: &mut Vec<DecompressedData>) {
 pub fn get_tensors(batch: &[DecompressedData]) -> (Tensor, Tensor, Tensor) {
     let batch_size = batch.len();
 
-    let mut inputs = vec![0f32; batch_size * arch::INPUTS as usize];
+    let mut batch_indices = Vec::with_capacity(32 * batch_size);
+    let mut feat_indices = Vec::with_capacity(32 * batch_size);
+
     let mut masks = vec![true; batch_size * arch::OUTPUTS as usize];
-    let mut outputs = vec![0f32; batch_size * arch::OUTPUTS as usize];
+
+    let mut output_batch_indices = Vec::with_capacity(128 * batch_size);
+    let mut output_indices = Vec::with_capacity(128 * batch_size);
+    let mut output_values = Vec::with_capacity(128 * batch_size);
 
     for (i, point) in batch.iter().enumerate() {
-        arch::map_policy_inputs(&point.pos, |feat| inputs[arch::INPUTS as usize * i + feat] = 1.0);
+        arch::map_policy_inputs(&point.pos, |feat| {
+            batch_indices.push(i as i64);
+            feat_indices.push(feat as i64);
+        });
 
         let mut total = 0;
         for value in &point.moves[..point.num] {
@@ -131,13 +139,22 @@ pub fn get_tensors(batch: &[DecompressedData]) -> (Tensor, Tensor, Tensor) {
             let idx = arch::OUTPUTS as usize * i + move_idx;
             
             masks[idx] = false;
-            outputs[idx] += f32::from(value.1) / total;
+            output_batch_indices.push(i as i64);
+            output_indices.push(move_idx as i64);
+            output_values.push(f32::from(value.1) / total);
         }
     }
 
-    let xs = Tensor::from_slice(&inputs).reshape([batch_size as i64, arch::INPUTS]);
+    let total_feats = feat_indices.len();
+    let values = Tensor::from_slice(&vec![1f32; total_feats]);
+    let indices = Tensor::from_slice2(&[batch_indices, feat_indices]);
+    let xs = Tensor::sparse_coo_tensor_indices_size(&indices, &values, [batch_size as i64, arch::INPUTS], (Kind::Float, Device::Cpu), true);
+
     let legal_mask = Tensor::from_slice(&masks).reshape([batch_size as i64, arch::OUTPUTS]);
-    let targets = Tensor::from_slice(&outputs).reshape([batch_size as i64, arch::OUTPUTS]);
+
+    let values = Tensor::from_slice(&output_values);
+    let indices = Tensor::from_slice2(&[output_batch_indices, output_indices]);
+    let targets = Tensor::sparse_coo_tensor_indices_size(&indices, &values, [batch_size as i64, arch::OUTPUTS], (Kind::Float, Device::Cpu), false);
 
     (xs, legal_mask, targets)
 }
