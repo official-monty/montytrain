@@ -49,37 +49,14 @@ impl DataLoader {
 
                     println!("#[Running Batches]");
                     for batch in shuffle_buffer.chunks(self.batch_size) {
-                        let batch_size = batch.len();
-
-                        let mut inputs = vec![0f32; batch_size * arch::INPUTS as usize];
-                        let mut masks = vec![true; batch_size * arch::OUTPUTS as usize];
-                        let mut outputs = vec![0f32; batch_size * arch::OUTPUTS as usize];
-
-                        for (i, point) in batch.iter().enumerate() {
-                            arch::map_policy_inputs(&point.pos, |feat| inputs[arch::INPUTS as usize * i + feat] = 1.0);
-
-                            let mut total = 0;
-                            for value in &point.moves[..point.num] {
-                                total += value.1;
-                            }
-
-                            let total = f32::from(total);
-
-                            for value in &point.moves[..point.num] {
-                                let mov = Move::from(value.0);
-                                let move_idx = arch::map_move_to_index(&point.pos, mov);
-                                let idx = arch::OUTPUTS as usize * i + move_idx;
-                                
-                                masks[idx] = false;
-                                outputs[idx] += f32::from(value.1) / total;
-                            }
-                        }
-
-                        let xs = Tensor::from_slice(&inputs).reshape([batch_size as i64, arch::INPUTS]).to_device(self.device);
-                        let legal_mask = Tensor::from_slice(&masks).reshape([batch_size as i64, arch::OUTPUTS]).to_device(self.device);
-                        let targets = Tensor::from_slice(&outputs).reshape([batch_size as i64, arch::OUTPUTS]).to_device(self.device);
-
-                        let should_break = f(&xs, &legal_mask, &targets, batch_size);
+                        let (xs, legal_mask, targets) = get_tensors(batch);
+                        
+                        let should_break = f(
+                            &xs.to_device(self.device),
+                            &legal_mask.to_device(self.device),
+                            &targets.to_device(self.device),
+                            batch.len(),
+                        );
 
                         if should_break {
                             break 'dataloading;
@@ -129,4 +106,38 @@ fn parse_into_buffer(game: MontyFormat, buffer: &mut Vec<DecompressedData>) {
 
         pos.make(data.best_move, &castling);
     }
+}
+
+pub fn get_tensors(batch: &[DecompressedData]) -> (Tensor, Tensor, Tensor) {
+    let batch_size = batch.len();
+
+    let mut inputs = vec![0f32; batch_size * arch::INPUTS as usize];
+    let mut masks = vec![true; batch_size * arch::OUTPUTS as usize];
+    let mut outputs = vec![0f32; batch_size * arch::OUTPUTS as usize];
+
+    for (i, point) in batch.iter().enumerate() {
+        arch::map_policy_inputs(&point.pos, |feat| inputs[arch::INPUTS as usize * i + feat] = 1.0);
+
+        let mut total = 0;
+        for value in &point.moves[..point.num] {
+            total += value.1;
+        }
+
+        let total = f32::from(total);
+
+        for value in &point.moves[..point.num] {
+            let mov = Move::from(value.0);
+            let move_idx = arch::map_move_to_index(&point.pos, mov);
+            let idx = arch::OUTPUTS as usize * i + move_idx;
+            
+            masks[idx] = false;
+            outputs[idx] += f32::from(value.1) / total;
+        }
+    }
+
+    let xs = Tensor::from_slice(&inputs).reshape([batch_size as i64, arch::INPUTS]);
+    let legal_mask = Tensor::from_slice(&masks).reshape([batch_size as i64, arch::OUTPUTS]);
+    let targets = Tensor::from_slice(&outputs).reshape([batch_size as i64, arch::OUTPUTS]);
+
+    (xs, legal_mask, targets)
 }

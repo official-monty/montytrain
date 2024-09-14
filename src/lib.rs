@@ -4,12 +4,37 @@ mod rng;
 
 use arch::PolicyNetwork;
 use loader::DataLoader;
-use tch::{nn::{self, OptimizerConfig}, Device, Kind, TchError};
+use tch::{nn::{self, Optimizer, OptimizerConfig}, Device, Kind, TchError, Tensor};
 
 use std::{io::Write, time::Instant};
 
 const BATCH_SIZE: usize = 16_384;
 const BPSB: usize = 1024;
+
+fn run_batch(
+    net: &PolicyNetwork,
+    opt: &mut Optimizer,
+    xs: &Tensor,
+    legal_mask: &Tensor,
+    targets: &Tensor,
+    batch_size: usize,
+) -> f32 {
+    let raw_logits = net.forward_raw(xs, batch_size as i64);
+
+    let masked = raw_logits.masked_fill(legal_mask, f64::NEG_INFINITY);
+
+    let log_softmaxed = masked.log_softmax(1, Kind::Float);
+
+    let masked_softmaxed = log_softmaxed.masked_fill(legal_mask, 0.0);
+
+    let losses = -targets * masked_softmaxed;
+
+    let loss = losses.sum(Kind::Float).divide_scalar(batch_size as f64);
+
+    opt.backward_step(&loss);
+
+    tch::no_grad(|| f32::try_from(loss).unwrap())
+}
 
 pub fn train(
     buffer_size_mb: usize,
@@ -36,21 +61,8 @@ pub fn train(
     let mut t = Instant::now();
 
     data_loader.map_batches(|xs, legal_mask, targets, batch_size| {
-        let raw_logits = net.forward_raw(xs, batch_size as i64);
+        let this_loss = run_batch(&net, &mut opt, xs, legal_mask, targets, batch_size);
 
-        let masked = raw_logits.masked_fill(legal_mask, f64::NEG_INFINITY);
-
-        let log_softmaxed = masked.log_softmax(1, Kind::Float);
-
-        let masked_softmaxed = log_softmaxed.masked_fill(legal_mask, 0.0);
-
-        let losses = -targets * masked_softmaxed;
-
-        let loss = losses.sum(Kind::Float).divide_scalar(batch_size as f64);
-
-        opt.backward_step(&loss);
-
-        let this_loss = tch::no_grad(|| f32::try_from(loss).unwrap());
         running_error += this_loss;
 
         batch_no += 1;
