@@ -1,8 +1,8 @@
 use montyformat::chess::{Move, Piece, Position, Side};
-use tch::{nn, Kind, Tensor};
+use tch::{nn, Tensor};
 
 pub const INPUTS: i64 = 768;
-pub const EMBED_SIZE: i64 = 64;
+pub const EMBED_SIZE: i64 = 16;
 pub const FROM_SUBNETS: i64 = 64;
 pub const DEST_SUBNETS: i64 = 64;
 pub const OUTPUTS: i64 = FROM_SUBNETS * DEST_SUBNETS;
@@ -24,16 +24,12 @@ impl PolicyNetwork {
         }
     }
 
-    pub fn forward(&self, xs: &Tensor, legal_mask: &Tensor, batch_size: i64) -> Tensor {
+    pub fn forward_raw(&self, xs: &Tensor, batch_size: i64) -> Tensor {
         let froms = xs.apply(&self.from_subnet_l1).relu().reshape([batch_size, FROM_SUBNETS, EMBED_SIZE]);
 
         let dests = xs.apply(&self.dest_subnet_l1).relu().reshape([batch_size, EMBED_SIZE, DEST_SUBNETS]);
 
-        let raw_logits = froms.matmul(&dests).reshape([batch_size, FROM_SUBNETS * DEST_SUBNETS]);
-
-        let masked = raw_logits.masked_fill(legal_mask, f64::NEG_INFINITY);
-
-        masked.softmax(1, Kind::Float)
+        froms.matmul(&dests).reshape([batch_size, FROM_SUBNETS * DEST_SUBNETS])
     }
 }
 

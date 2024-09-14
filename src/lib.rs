@@ -4,12 +4,12 @@ mod rng;
 
 use arch::PolicyNetwork;
 use loader::DataLoader;
-use tch::{nn::{self, OptimizerConfig}, Device, TchError, Tensor};
+use tch::{nn::{self, OptimizerConfig}, Device, Kind, TchError};
 
 use std::{io::Write, time::Instant};
 
 const BATCH_SIZE: usize = 16_384;
-const BPSB: usize = 32;
+const BPSB: usize = 1024;
 
 pub fn train(
     buffer_size_mb: usize,
@@ -36,15 +36,21 @@ pub fn train(
     let mut t = Instant::now();
 
     data_loader.map_batches(|xs, legal_mask, targets, batch_size| {
-        let fwd = net.forward(xs, legal_mask, batch_size as i64);
+        let raw_logits = net.forward_raw(xs, batch_size as i64);
 
-        let loss = fwd
-            .cross_entropy_loss::<Tensor>(targets, None, tch::Reduction::Sum, -100, 0.0)
-            .divide_scalar(batch_size as f64);
+        let masked = raw_logits.masked_fill(legal_mask, f64::NEG_INFINITY);
+
+        let log_softmaxed = masked.log_softmax(1, Kind::Float);
+
+        let masked_softmaxed = log_softmaxed.masked_fill(legal_mask, 0.0);
+
+        let losses = -targets * masked_softmaxed;
+
+        let loss = losses.sum(Kind::Float).divide_scalar(batch_size as f64);
 
         opt.backward_step(&loss);
 
-        let this_loss = f32::try_from(loss).unwrap();
+        let this_loss = tch::no_grad(|| f32::try_from(loss).unwrap());
         running_error += this_loss;
 
         batch_no += 1;
