@@ -60,7 +60,7 @@ impl DataLoader {
                     for batch in shuffle_buffer.chunks(self.batch_size) {
                         let (xs, legal_mask, targets) = get_tensors(batch, &mut preallocs);
 
-                        let xs = &xs.to_device(self.device);
+                        let xs = &xs.to_device(self.device).to_dense(None, true);
                         let legal_mask = &legal_mask.to_device(self.device).to_dense(None, true).logical_not();
                         let targets = &targets.to_device(self.device).to_dense(None, true);
 

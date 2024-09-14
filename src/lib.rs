@@ -61,15 +61,17 @@ pub fn train(
     let mut t = Instant::now();
 
     data_loader.map_batches(|xs, legal_mask, targets, batch_size| {
+        let t2 = Instant::now();
         let this_loss = run_batch(&net, &mut opt, xs, legal_mask, targets, batch_size);
 
         running_error += this_loss;
 
         batch_no += 1;
         print!(
-            "> Superbatch {}/{superbatches} Batch {}/{BPSB} Current Loss {this_loss:.6}\r",
+            "> Superbatch {}/{superbatches} Batch {}/{BPSB} Current Loss {this_loss:.4} Time {}ms\r",
             sb + 1,
             batch_no % BPSB,
+            t2.elapsed().as_millis()
         );
         let _ = std::io::stdout().flush();
 
