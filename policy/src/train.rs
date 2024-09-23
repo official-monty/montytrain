@@ -1,9 +1,4 @@
-mod arch;
-mod loader;
-mod rng;
-
-use arch::PolicyNetwork;
-use loader::DataLoader;
+use crate::{arch::PolicyNetwork, loader::DataLoader};
 use tch::{
     nn::{self, Optimizer, OptimizerConfig},
     Device, Kind, TchError, Tensor,

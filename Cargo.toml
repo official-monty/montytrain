@@ -1,7 +1,11 @@
-[package]
-name = "montytrain"
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+authors = ["Jamie Whiting"]
+
+[workspace]
+resolver = "2"
+members = ["policy", "common", "value"]
 
 [profile.release]
 lto = true
@@ -9,6 +13,6 @@ codegen-units = 1
 strip = true
 panic = "abort"
 
-[dependencies]
-montyformat = { git = 'https://github.com/official-monty/montyformat.git', tag = "v0.2.0" }
+[workspace.dependencies]
+montyformat = { git = 'https://github.com/official-monty/montyformat.git', tag = "v0.3.0" }
 tch = "0.17.0"

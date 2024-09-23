@@ -101,6 +101,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "montyformat",
+ "tch",
+]
+
+[[package]]
 name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -279,16 +287,8 @@ dependencies = [
 
 [[package]]
 name = "montyformat"
-version = "0.2.0"
-source = "git+https://github.com/official-monty/montyformat.git?tag=v0.2.0#85983d36812445666879b11f01eb3173a88d61cd"
-
-[[package]]
-name = "montytrain"
-version = "0.1.0"
-dependencies = [
- "montyformat",
- "tch",
-]
+version = "0.3.0"
+source = "git+https://github.com/official-monty/montyformat.git?tag=v0.3.0#0789de7fb025d799b4cb57b840714fd4d3c6fcfb"
 
 [[package]]
 name = "ndarray"
@@ -364,6 +364,14 @@ name = "pkg-config"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231b230927b5e4ad203db57bbcbee2802f6bce620b1e4a9024a07d94e2907ec"
+
+[[package]]
+name = "policy"
+version = "0.1.0"
+dependencies = [
+ "montyformat",
+ "tch",
+]
 
 [[package]]
 name = "powerfmt"
@@ -606,6 +614,14 @@ name = "unicode-ident"
 version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
+
+[[package]]
+name = "value"
+version = "0.1.0"
+dependencies = [
+ "montyformat",
+ "tch",
+]
 
 [[package]]
 name = "version_check"

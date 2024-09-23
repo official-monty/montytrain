@@ -1,4 +1,9 @@
-use montytrain::train;
+mod arch;
+mod loader;
+mod rng;
+mod train;
+
+use train::train;
 
 fn main() {
     let mut args = std::env::args();
