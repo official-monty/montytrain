@@ -1,1 +1,3 @@
+mod arch;
+
 fn main() {}

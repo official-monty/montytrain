@@ -33,7 +33,7 @@ pub struct PolicyNetwork {
 }
 
 impl PolicyNetwork {
-    pub fn new(vs: &nn::Path) -> Self {
+    pub fn randomised(vs: &nn::Path) -> Self {
         Self {
             from_subnets: SubNet::new(vs),
             dest_subnets: SubNet::new(vs),

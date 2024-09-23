@@ -6,7 +6,7 @@ use montyformat::{
 };
 use tch::{Device, Kind, Tensor};
 
-use crate::{arch, rng::Rand};
+use crate::{arch::{self, PolicyNetwork}, rng::Rand};
 
 #[derive(Clone, Copy)]
 pub struct DecompressedData {
@@ -22,8 +22,8 @@ pub struct DataLoader {
     device: Device,
 }
 
-impl DataLoader {
-    pub fn new(path: &str, buffer_size_mb: usize, batch_size: usize, device: Device) -> Self {
+impl common::DataLoader<PolicyNetwork> for DataLoader {
+    fn new(path: &str, buffer_size_mb: usize, batch_size: usize, device: Device) -> Self {
         Self {
             file_path: path.to_string(),
             buffer_size: buffer_size_mb * 1024 * 1024 / std::mem::size_of::<DecompressedData>() / 2,
@@ -32,7 +32,7 @@ impl DataLoader {
         }
     }
 
-    pub fn map_batches<F: FnMut(&Tensor, &Tensor, &Tensor, usize) -> bool>(&self, mut f: F) {
+    fn map_batches<F: FnMut(&(Tensor, Tensor, Tensor, usize)) -> bool>(&self, mut f: F) {
         let mut reusable_buffer = Vec::new();
 
         let mut shuffle_buffer = Vec::new();
@@ -63,14 +63,14 @@ impl DataLoader {
                     for batch in shuffle_buffer.chunks(self.batch_size) {
                         let (xs, legal_mask, targets) = get_tensors(batch, &mut preallocs);
 
-                        let xs = &xs.to_device(self.device).to_dense(None, true);
-                        let legal_mask = &legal_mask
+                        let xs = xs.to_device(self.device).to_dense(None, true);
+                        let legal_mask = legal_mask
                             .to_device(self.device)
                             .to_dense(None, true)
                             .logical_not();
-                        let targets = &targets.to_device(self.device).to_dense(None, true);
+                        let targets = targets.to_device(self.device).to_dense(None, true);
 
-                        let should_break = f(xs, legal_mask, targets, batch.len());
+                        let should_break = f(&(xs, legal_mask, targets, batch.len()));
 
                         if should_break {
                             break 'dataloading;
