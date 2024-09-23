@@ -69,10 +69,6 @@ impl ValueNetwork {
     }
 
     pub fn fwd(&self, xs: &[Tensor], batch_size: i64) -> Tensor {
-        for x in xs {
-            assert_eq!(x.size(), vec![INPUTS, batch_size]);
-        }
-
         let mut queries = Vec::new();
         let mut keys = Vec::new();
         let mut values = Vec::new();
@@ -104,8 +100,6 @@ pub fn map_value_features<F: FnMut(usize, usize)>(pos: &Position, mut f: F) {
 
     for (stm, &side) in [pos.stm(), 1 - pos.stm()].iter().enumerate() {
         for piece in Piece::PAWN..=Piece::KING {
-            let mut input_bbs = [0; 4];
-
             let piece_idx = 6 * stm + piece - 2;
 
             let mut bb = pos.piece(side) & pos.piece(piece);
@@ -114,8 +108,6 @@ pub fn map_value_features<F: FnMut(usize, usize)>(pos: &Position, mut f: F) {
 
                 let bit = 1 << sq;
                 let state = usize::from(bit & threats > 0) + 2 * usize::from(bit & defences > 0);
-
-                input_bbs[state] ^= 1 << (sq ^ flip);
 
                 f(piece_idx, 64 * state + (sq ^ flip));
 
