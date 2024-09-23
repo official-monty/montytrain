@@ -58,7 +58,7 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
                     for batch in shuffle_buffer.chunks(self.batch_size) {
                         let (xs, targets) = get_tensors(batch, &mut preallocs);
 
-                        let xs = xs.iter().map(|x| x.to_device(self.device).to_dense(None, true)).collect();
+                        let xs = xs.iter().map(|x| x.to_device(self.device).to_dense(None, true).transpose(-2, -1)).collect();
                         let targets = targets.to_device(self.device);
 
                         let should_break = f(&(xs, targets, batch.len()));

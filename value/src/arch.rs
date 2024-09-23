@@ -1,6 +1,6 @@
 use montyformat::chess::{Piece, Position};
 use tch::{
-    nn::{self, Module},
+    nn,
     Kind, Tensor,
 };
 
@@ -70,7 +70,7 @@ impl ValueNetwork {
 
     pub fn fwd(&self, xs: &[Tensor], batch_size: i64) -> Tensor {
         for x in xs {
-            assert_eq!(x.size(), vec![batch_size, INPUTS]);
+            assert_eq!(x.size(), vec![INPUTS, batch_size]);
         }
 
         let mut queries = Vec::new();
@@ -78,9 +78,9 @@ impl ValueNetwork {
         let mut values = Vec::new();
 
         for (qkv, x) in self.qkvs.iter().zip(xs.iter()) {
-            queries.push(qkv.q.forward(x));
-            keys.push(qkv.k.forward(x));
-            values.push(qkv.v.forward(x));
+            queries.push(qkv.q.ws.matmul(x).transpose(-2, -1));
+            keys.push(qkv.k.ws.matmul(x).transpose(-2, -1));
+            values.push(qkv.v.ws.matmul(x).transpose(-2, -1));
         }
 
         let query = Tensor::concat(&queries, -1).reshape([batch_size, TOKENS, DK]);
