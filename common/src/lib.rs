@@ -44,6 +44,7 @@ pub fn train<N: Network, D: DataLoader<N>>(
     steps: Steps,
     lr_schedule: LRSchedule,
     save_rate: usize,
+    print_rate: usize,
 ) -> Result<(), TchError> {
     let device = Device::cuda_if_available();
     let vs = nn::VarStore::new(device);
@@ -64,20 +65,25 @@ pub fn train<N: Network, D: DataLoader<N>>(
 
     let mut t = Instant::now();
 
+    let mut window_time = 0;
+
     data_loader.map_batches(|inputs| {
         let t2 = Instant::now();
         let this_loss = net.run_batch(&mut opt, inputs);
-
+        window_time += t2.elapsed().as_millis();
         running_error += this_loss;
 
         batch_no += 1;
-        print!(
-            "> Superbatch {}/{sbs} Batch {}/{bpsb} Current Loss {this_loss:.4} Time {}ms\r",
-            sb + 1,
-            batch_no % bpsb,
-            t2.elapsed().as_millis()
-        );
-        let _ = std::io::stdout().flush();
+        if batch_no % print_rate == 0 {
+            print!(
+                "> Superbatch {}/{sbs} Batch {}/{bpsb} Current Loss {this_loss:.4} Time {}ms\r",
+                sb + 1,
+                batch_no % bpsb,
+                window_time
+            );
+            let _ = std::io::stdout().flush();
+            window_time = 0;
+        }
 
         if batch_no % bpsb == 0 {
             let elapsed = t.elapsed().as_secs_f32();

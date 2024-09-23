@@ -1,9 +1,10 @@
-use montyformat::chess::{Move, Piece, Position, Side};
+use montyformat::chess::{Piece, Position};
 use tch::{
     nn::{self, Module},
     Kind, Tensor,
 };
 
+pub const INPUTS: i64 = 256;
 pub const TOKENS: i64 = 12;
 const DK: i64 = 32;
 const DV: i64 = 8;
@@ -17,7 +18,7 @@ impl OutputHead {
     fn new(vs: &nn::Path) -> Self {
         Self {
             l1: nn::linear(vs, DV * TOKENS, 16, Default::default()),
-            l2: nn::linear(vs, DV * 16, 1, Default::default()),
+            l2: nn::linear(vs, 16, 1, Default::default()),
         }
     }
 
@@ -26,13 +27,13 @@ impl OutputHead {
     }
 }
 
-struct QKV {
+struct QKVEmbedding {
     q: nn::Linear,
     k: nn::Linear,
     v: nn::Linear,
 }
 
-impl QKV {
+impl QKVEmbedding {
     fn new(vs: &nn::Path) -> Self {
         let config = nn::LinearConfig {
             bias: false,
@@ -41,52 +42,85 @@ impl QKV {
         };
 
         Self {
-            q: nn::linear(vs, 256, DK, config),
-            k: nn::linear(vs, 256, DK, config),
-            v: nn::linear(vs, 256, DV, config),
+            q: nn::linear(vs, INPUTS, DK, config),
+            k: nn::linear(vs, INPUTS, DK, config),
+            v: nn::linear(vs, INPUTS, DV, config),
         }
     }
 }
 
 pub struct ValueNetwork {
-    qkvs: Vec<QKV>,
+    qkvs: Vec<QKVEmbedding>,
     out: OutputHead,
 }
 
 impl ValueNetwork {
-    pub fn new(vs: &nn::Path) -> Self {
+    pub fn randomised(vs: &nn::Path) -> Self {
         let mut net = Self {
             qkvs: Vec::new(),
             out: OutputHead::new(vs),
         };
 
         for _ in 0..TOKENS {
-            net.qkvs.push(QKV::new(vs));
+            net.qkvs.push(QKVEmbedding::new(vs));
         }
 
         net
     }
 
-    pub fn fwd(&self, xs: &Tensor) -> Tensor {
+    pub fn fwd(&self, xs: &[Tensor], batch_size: i64) -> Tensor {
+        for x in xs {
+            assert_eq!(x.size(), vec![batch_size, INPUTS]);
+        }
+
         let mut queries = Vec::new();
         let mut keys = Vec::new();
         let mut values = Vec::new();
 
-        for qkv in &self.qkvs {
-            queries.push(qkv.q.forward(xs));
-            keys.push(qkv.k.forward(xs));
-            values.push(qkv.v.forward(xs));
+        for (qkv, x) in self.qkvs.iter().zip(xs.iter()) {
+            queries.push(qkv.q.forward(x));
+            keys.push(qkv.k.forward(x));
+            values.push(qkv.v.forward(x));
         }
 
-        let query = Tensor::concat(&queries, -2);
-        let key = Tensor::concat(&keys, -2);
-        let value = Tensor::concat(&values, -2);
+        let query = Tensor::concat(&queries, -1).reshape([batch_size, TOKENS, DK]);
+        let key = Tensor::concat(&keys, -1).reshape([batch_size, TOKENS, DK]);
+        let value = Tensor::concat(&values, -1).reshape([batch_size, TOKENS, DV]);
 
         let scale = 1.0 / (*query.size().last().unwrap() as f32).sqrt();
         let dots = scale * query.bmm(&key.transpose(-2, -1));
         let softmaxed = dots.softmax(-1, Kind::Float);
-        let attention = softmaxed.bmm(&value);
+        let attention = softmaxed.bmm(&value).reshape([batch_size, TOKENS * DV]);
 
         self.out.fwd(&attention.relu())
+    }
+}
+
+pub fn map_value_features<F: FnMut(usize, usize)>(pos: &Position, mut f: F) {
+    let threats = pos.threats_by(1 - pos.stm());
+    let defences = pos.threats_by(pos.stm());
+
+    let flip = if pos.stm() > 0 { 56 } else { 0 };
+
+    for (stm, &side) in [pos.stm(), 1 - pos.stm()].iter().enumerate() {
+        for piece in Piece::PAWN..=Piece::KING {
+            let mut input_bbs = [0; 4];
+
+            let piece_idx = 6 * stm + piece - 2;
+
+            let mut bb = pos.piece(side) & pos.piece(piece);
+            while bb > 0 {
+                let sq = bb.trailing_zeros() as usize;
+
+                let bit = 1 << sq;
+                let state = usize::from(bit & threats > 0) + 2 * usize::from(bit & defences > 0);
+
+                input_bbs[state] ^= 1 << (sq ^ flip);
+
+                f(piece_idx, 64 * state + (sq ^ flip));
+
+                bb &= bb - 1;
+            }
+        }
     }
 }

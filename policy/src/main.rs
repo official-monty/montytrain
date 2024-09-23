@@ -61,6 +61,7 @@ fn main() {
         steps,
         lr_schedule,
         10,
+        4,
     )
     .unwrap();
 }

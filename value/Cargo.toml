@@ -5,5 +5,6 @@ edition = "2021"
 authors.workspace = true
 
 [dependencies]
+common = { path = "../common" }
 montyformat = { workspace = true }
 tch = { workspace = true }
