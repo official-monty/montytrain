@@ -1,5 +1,8 @@
 use montyformat::chess::{Move, Piece, Position, Side};
-use tch::{nn::{self, Module}, Kind, Tensor};
+use tch::{
+    nn::{self, Module},
+    Kind, Tensor,
+};
 
 pub const TOKENS: i64 = 12;
 const DK: i64 = 32;
@@ -45,12 +48,12 @@ impl QKV {
     }
 }
 
-pub struct Network {
+pub struct ValueNetwork {
     qkvs: Vec<QKV>,
     out: OutputHead,
 }
 
-impl Network {
+impl ValueNetwork {
     pub fn new(vs: &nn::Path) -> Self {
         let mut net = Self {
             qkvs: Vec::new(),

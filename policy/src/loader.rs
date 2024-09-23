@@ -1,12 +1,14 @@
 use std::{fs::File, io::BufReader};
 
+use common::Rand;
+
 use montyformat::{
     chess::{Move, Position},
     MontyFormat,
 };
 use tch::{Device, Kind, Tensor};
 
-use crate::{arch::{self, PolicyNetwork}, rng::Rand};
+use crate::arch::{self, PolicyNetwork};
 
 #[derive(Clone, Copy)]
 pub struct DecompressedData {

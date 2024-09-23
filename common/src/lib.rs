@@ -1,6 +1,13 @@
+mod rng;
+
+pub use rng::Rand;
+
 use std::{io::Write, time::Instant};
 
-use tch::{nn::{self, Optimizer, OptimizerConfig}, Device, TchError};
+use tch::{
+    nn::{self, Optimizer, OptimizerConfig},
+    Device, TchError,
+};
 
 pub trait Network {
     type Inputs;
@@ -97,11 +104,12 @@ pub fn train<N: Network, D: DataLoader<N>>(
                 lr *= lr_schedule.gamma;
                 println!("Dropping LR to {lr}");
             }
-            
+
             opt.set_lr(lr.into());
 
             if sb % save_rate == 0 {
-                vs.save(format!("{output_path}/network-{sb}.pt").as_str()).unwrap();
+                vs.save(format!("{output_path}/network-{sb}.pt").as_str())
+                    .unwrap();
             }
 
             sb == sbs
