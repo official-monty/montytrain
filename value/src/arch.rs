@@ -4,10 +4,12 @@ use tch::{
     Kind, Tensor,
 };
 
+use crate::save::SavedNetworkFormat;
+
 pub const INPUTS: i64 = 256;
 pub const TOKENS: i64 = 12;
-const DK: i64 = 32;
-const DV: i64 = 8;
+pub const DK: i64 = 32;
+pub const DV: i64 = 8;
 
 struct OutputHead {
     l1: nn::Linear,
@@ -89,6 +91,21 @@ impl ValueNetwork {
         let attention = softmaxed.bmm(&value).reshape([batch_size, TOKENS * DV]);
 
         self.out.fwd(&attention.relu())
+    }
+
+    pub fn export(&self) -> Box<SavedNetworkFormat> {
+        let mut net = SavedNetworkFormat::boxed_and_zeroed();
+
+        for (i, qkv) in self.qkvs.iter().enumerate() {
+            SavedNetworkFormat::write_linear_into_matrix(&qkv.q, &mut net.wq[i]);
+            SavedNetworkFormat::write_linear_into_matrix(&qkv.k, &mut net.wk[i]);
+            SavedNetworkFormat::write_linear_into_matrix(&qkv.v, &mut net.wv[i]);
+        }
+
+        SavedNetworkFormat::write_linear_into_layer(&self.out.l1, &mut net.l1);
+        SavedNetworkFormat::write_linear_into_layer(&self.out.l2, &mut net.l2);
+
+        net
     }
 }
 

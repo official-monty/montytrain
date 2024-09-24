@@ -1,5 +1,6 @@
 mod arch;
 mod loader;
+mod save;
 
 use arch::ValueNetwork;
 use loader::DataLoader;
@@ -25,6 +26,11 @@ impl common::Network for ValueNetwork {
 
         tch::no_grad(|| f32::try_from(loss).unwrap())
     }
+
+    fn save(&self, path: &str) {
+        let net = self.export();
+        net.write_to_bin(path);
+    }
 }
 
 fn main() {
@@ -43,7 +49,7 @@ fn main() {
     common::train::<ValueNetwork, DataLoader>(
         "checkpoints/value",
         "../binpacks/new-data.binpack",
-        4096,
+        1024,
         steps,
         lr_schedule,
         10,

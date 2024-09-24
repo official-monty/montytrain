@@ -15,6 +15,8 @@ pub trait Network {
     fn new(vs: &nn::Path) -> Self;
 
     fn run_batch(&self, opt: &mut Optimizer, inputs: &Self::Inputs) -> f32;
+
+    fn save(&self, path: &str);
 }
 
 pub trait DataLoader<N: Network> {
@@ -49,6 +51,8 @@ pub fn train<N: Network, D: DataLoader<N>>(
     let device = Device::cuda_if_available();
     let vs = nn::VarStore::new(device);
     let net = N::new(&vs.root());
+
+    println!("Device: {device:?}");
 
     let data_loader = D::new(data_path, buffer_size_mb, steps.batch_size, device);
 
@@ -114,8 +118,7 @@ pub fn train<N: Network, D: DataLoader<N>>(
             opt.set_lr(lr.into());
 
             if sb % save_rate == 0 {
-                vs.save(format!("{output_path}/network-{sb}.pt").as_str())
-                    .unwrap();
+                net.save(format!("{output_path}/network-{sb}.pt").as_str())
             }
 
             sb == sbs

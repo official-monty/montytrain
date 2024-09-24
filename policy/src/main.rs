@@ -35,6 +35,8 @@ impl common::Network for PolicyNetwork {
 
         tch::no_grad(|| f32::try_from(loss).unwrap())
     }
+
+    fn save(&self, _: &str) {}
 }
 
 fn main() {
