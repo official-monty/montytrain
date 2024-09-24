@@ -51,10 +51,8 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
                 if shuffle_buffer.len() + reusable_buffer.len() < shuffle_buffer.capacity() {
                     shuffle_buffer.extend_from_slice(&reusable_buffer);
                 } else {
-                    println!("#[Shuffling]");
                     shuffle(&mut shuffle_buffer);
 
-                    println!("#[Running Batches]");
                     for batch in shuffle_buffer.chunks(self.batch_size) {
                         let (xs, targets) = get_tensors(batch, &mut preallocs);
 
@@ -68,7 +66,6 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
                         }
                     }
 
-                    println!();
                     shuffle_buffer.clear();
                 }
             }
