@@ -2,17 +2,13 @@ mod arch;
 mod loader;
 
 use arch::PolicyNetwork;
-use common::{LRSchedule, Steps};
+use common::{LocalSettings, LRSchedule, Steps};
 use loader::DataLoader;
 
-use tch::{nn::Optimizer, Kind, Tensor};
+use tch::{nn::{self, Optimizer, OptimizerConfig}, Device, Kind, Tensor};
 
 impl common::Network for PolicyNetwork {
     type Inputs = (Tensor, Tensor, Tensor, usize);
-
-    fn new(vs: &tch::nn::Path) -> Self {
-        Self::randomised(vs)
-    }
 
     fn run_batch(
         &self,
@@ -56,14 +52,27 @@ fn main() {
         step: 14,
     };
 
-    common::train::<PolicyNetwork, DataLoader>(
-        "checkpoints/policy",
-        "data/policygen6.binpack",
+    let local_settings = LocalSettings {
+        output_path: "checkpoints/policy",
+        data_path: "data/policygen6.binpack",
+        save_rate: 10,
+        print_rate: 16,
         buffer_size_mb,
+    };
+
+    let device = Device::cuda_if_available();
+    let vs = nn::VarStore::new(device);
+    let net = PolicyNetwork::randomised(&vs.root());
+
+    let mut opt = nn::Adam::default().build(&vs, lr_schedule.start.into()).unwrap();
+
+    common::train::<PolicyNetwork, DataLoader>(
+        device,
+        &net,
+        &mut opt,
         steps,
         lr_schedule,
-        10,
-        4,
+        local_settings,
     )
     .unwrap();
 }

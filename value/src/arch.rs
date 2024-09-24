@@ -1,10 +1,9 @@
-use montyformat::chess::{Piece, Position};
+use montyformat::chess::{Castling, Piece, Position};
 use tch::{
-    nn,
-    Kind, Tensor,
+    nn, Device, Kind, Tensor
 };
 
-use crate::save::SavedNetworkFormat;
+use crate::{loader::{DataLoader, PreAllocs}, save::SavedNetworkFormat};
 
 pub const INPUTS: i64 = 256;
 pub const TOKENS: i64 = 12;
@@ -106,6 +105,41 @@ impl ValueNetwork {
         SavedNetworkFormat::write_linear_into_layer(&self.out.l2, &mut net.l2);
 
         net
+    }
+
+    pub fn run_sample_fens(&self) {
+        let fens = [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+            "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1",
+            "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 b kq - 0 1",
+            "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R b KQ - 1 8",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 b - - 0 1",
+        ];
+
+        let mut positions = Vec::new();
+        let mut castling = Castling::default();
+
+        for fen in fens {
+            positions.push((Position::parse_fen(fen, &mut castling), 0.5));
+        }
+
+        let device = Device::cuda_if_available();
+        let mut preallocs = PreAllocs::new(fens.len());
+
+        let inputs = DataLoader::get_batch_inputs(device, &positions, &mut preallocs);
+        let outputs = self.fwd(&inputs.0, fens.len() as i64);
+
+        let mut buffer = vec![0f32; fens.len()];
+        outputs.copy_data(&mut buffer, fens.len());
+        for (fen, score) in fens.iter().zip(buffer.iter()) {
+            println!("FEN: {fen}");
+            println!("EVAL: {:.0}cp", 400.0 * score)
+        }
     }
 }
 

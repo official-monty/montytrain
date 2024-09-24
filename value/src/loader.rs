@@ -30,17 +30,7 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
         let mut shuffle_buffer = Vec::new();
         shuffle_buffer.reserve_exact(self.buffer_size);
 
-        let mut preallocs = PreAllocs {
-            feat_indices: Vec::with_capacity(TOKENS as usize),
-            targets: Vec::with_capacity(self.batch_size),
-        };
-
-        for _ in 0..TOKENS {
-            preallocs.feat_indices.push([
-                Vec::with_capacity(self.batch_size * 8),
-                Vec::with_capacity(self.batch_size * 8),
-            ])
-        }
+        let mut preallocs = PreAllocs::new(self.batch_size);
 
         'dataloading: loop {
             let mut reader = BufReader::new(File::open(self.file_path.as_str()).unwrap());
@@ -54,10 +44,7 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
                     shuffle(&mut shuffle_buffer);
 
                     for batch in shuffle_buffer.chunks(self.batch_size) {
-                        let (xs, targets) = get_tensors(batch, &mut preallocs);
-
-                        let xs = xs.iter().map(|x| x.to_device(self.device).to_dense(None, true).transpose(-2, -1)).collect();
-                        let targets = targets.to_device(self.device);
+                        let (xs, targets) = Self::get_batch_inputs(self.device, batch, &mut preallocs);
 
                         let should_break = f(&(xs, targets, batch.len()));
 
@@ -70,6 +57,17 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
                 }
             }
         }
+    }
+}
+
+impl DataLoader {
+    pub fn get_batch_inputs(device: Device, batch: &[(Position, f32)], preallocs: &mut PreAllocs) -> (Vec<Tensor>, Tensor) {
+        let (xs, targets) = get_tensors(batch, preallocs);
+    
+        let xs = xs.iter().map(|x| x.to_device(device).to_dense(None, true).transpose(-2, -1)).collect();
+        let targets = targets.to_device(device);
+    
+        (xs, targets)
     }
 }
 
@@ -97,9 +95,27 @@ fn parse_into_buffer(game: MontyValueFormat, buffer: &mut Vec<(Position, f32)>) 
     }
 }
 
-struct PreAllocs {
+pub struct PreAllocs {
     feat_indices: Vec<[Vec<i64>; 2]>,
     targets: Vec<f32>,
+}
+
+impl PreAllocs {
+    pub fn new(batch_size: usize) -> Self {
+        let mut preallocs = PreAllocs {
+            feat_indices: Vec::with_capacity(TOKENS as usize),
+            targets: Vec::with_capacity(batch_size),
+        };
+
+        for _ in 0..TOKENS {
+            preallocs.feat_indices.push([
+                Vec::with_capacity(batch_size * 8),
+                Vec::with_capacity(batch_size * 8),
+            ])
+        }
+
+        preallocs
+    }
 }
 
 fn get_tensors(batch: &[(Position, f32)], preallocs: &mut PreAllocs) -> (Vec<Tensor>, Tensor) {

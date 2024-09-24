@@ -5,15 +5,11 @@ mod save;
 use arch::ValueNetwork;
 use loader::DataLoader;
 
-use common::{LRSchedule, Steps};
-use tch::Tensor;
+use common::{LRSchedule, LocalSettings, Steps};
+use tch::{nn::{self, OptimizerConfig}, Device, Tensor};
 
 impl common::Network for ValueNetwork {
     type Inputs = (Vec<Tensor>, Tensor, usize);
-
-    fn new(vs: &tch::nn::Path) -> Self {
-        Self::randomised(vs)
-    }
 
     fn run_batch(&self, opt: &mut tch::nn::Optimizer, (xs, targets, batch_size): &Self::Inputs) -> f32 {
         let out = self.fwd(xs, *batch_size as i64).reshape([*batch_size as i64]);
@@ -48,14 +44,29 @@ fn main() {
         step: 18,
     };
 
+    let local_settings = LocalSettings {
+        output_path: "checkpoints/value",
+        data_path: "../binpacks/new-data.binpack",
+        save_rate: 10,
+        print_rate: 16,
+        buffer_size_mb: 4096,
+    };
+
+    let device = Device::cuda_if_available();
+    let vs = nn::VarStore::new(device);
+    let net = ValueNetwork::randomised(&vs.root());
+
+    let mut opt = nn::Adam::default().build(&vs, lr_schedule.start.into()).unwrap();
+
     common::train::<ValueNetwork, DataLoader>(
-        "checkpoints/value",
-        "../binpacks/new-data.binpack",
-        4096,
+        device,
+        &net,
+        &mut opt,
         steps,
         lr_schedule,
-        10,
-        16,
+        local_settings,
     )
     .unwrap();
+
+    net.run_sample_fens();
 }
