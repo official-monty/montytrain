@@ -123,7 +123,7 @@ pub fn train<N: Network, D: DataLoader<N>>(
             opt.set_lr(lr.into());
 
             if sb % local_settings.save_rate == 0 {
-                net.save(format!("{}/network-{sb}.network", local_settings.save_rate).as_str())
+                net.save(format!("{}/network-{sb}.network", local_settings.output_path).as_str())
             }
 
             sb == sbs
