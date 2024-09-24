@@ -34,6 +34,8 @@ impl common::Network for ValueNetwork {
 }
 
 fn main() {
+    tch::set_num_threads(1);
+
     let steps = Steps {
         batch_size: 16_384,
         batches_per_superbatch: 6104,
@@ -49,7 +51,7 @@ fn main() {
     common::train::<ValueNetwork, DataLoader>(
         "checkpoints/value",
         "../binpacks/new-data.binpack",
-        1024,
+        4096,
         steps,
         lr_schedule,
         10,
