@@ -8,7 +8,7 @@ use crate::{loader::{DataLoader, PreAllocs}, save::SavedNetworkFormat};
 pub const INPUTS: i64 = 256;
 pub const TOKENS: i64 = 12;
 pub const DK: i64 = 32;
-pub const DV: i64 = 8;
+pub const DV: i64 = 32;
 
 struct OutputHead {
     l1: nn::Linear,
