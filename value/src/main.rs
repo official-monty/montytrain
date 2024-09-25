@@ -35,18 +35,18 @@ fn main() {
     let steps = Steps {
         batch_size: 16_384,
         batches_per_superbatch: 6104,
-        superbatches: 40,
+        superbatches: 160,
     };
 
     let lr_schedule = LRSchedule {
         start: 0.001,
         gamma: 0.1,
-        step: 18,
+        step: 60,
     };
 
     let local_settings = LocalSettings {
         output_path: "checkpoints/value",
-        data_path: "../binpacks/new-data.binpack",
+        data_path: "../binpacks/p.binpack",
         save_rate: 10,
         print_rate: 16,
         buffer_size_mb: 4096,
