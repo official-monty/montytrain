@@ -107,12 +107,17 @@ impl PreAllocs {
             targets: Vec::with_capacity(batch_size),
         };
 
-        for _ in 0..TOKENS {
+        for _ in 0..TOKENS - 1 {
             preallocs.feat_indices.push([
                 Vec::with_capacity(batch_size * 8),
                 Vec::with_capacity(batch_size * 8),
-            ])
+            ]);
         }
+
+        preallocs.feat_indices.push([
+            Vec::with_capacity(batch_size * 32),
+            Vec::with_capacity(batch_size * 32),
+        ]);
 
         preallocs
     }
@@ -143,7 +148,7 @@ fn get_tensors(batch: &[(Position, f32)], preallocs: &mut PreAllocs) -> (Vec<Ten
 
     let mut xs = Vec::with_capacity(TOKENS as usize);
 
-    for p in &preallocs.feat_indices {
+    let mut push_inputs = |p: &[Vec<i64>; 2], inputs: i64| {
         let total_feats = p[0].len();
         let values = Tensor::from_slice(&vec![1f32; total_feats]);
         let indices = Tensor::from_slice2(&[&p[0], &p[1]]);
@@ -151,13 +156,19 @@ fn get_tensors(batch: &[(Position, f32)], preallocs: &mut PreAllocs) -> (Vec<Ten
         let x = Tensor::sparse_coo_tensor_indices_size(
             &indices,
             &values,
-            [batch_size as i64, arch::INPUTS],
+            [batch_size as i64, inputs],
             (Kind::Float, Device::Cpu),
             true,
         );
 
         xs.push(x);
+    };
+
+    for p in preallocs.feat_indices.iter().take(TOKENS as usize - 1) {
+        push_inputs(p, arch::INPUTS);
     }
+
+    push_inputs(&preallocs.feat_indices[TOKENS as usize - 1], 768);
 
     let targets = Tensor::from_slice(&preallocs.targets);
 
