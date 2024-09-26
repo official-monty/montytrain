@@ -141,7 +141,7 @@ fn get_tensors(batch: &[(Position, f32)], preallocs: &mut PreAllocs) -> (Vec<Ten
         });
     }
 
-    let mut xs = Vec::with_capacity(12);
+    let mut xs = Vec::with_capacity(TOKENS as usize);
 
     for p in &preallocs.feat_indices {
         let total_feats = p[0].len();
