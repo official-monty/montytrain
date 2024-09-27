@@ -34,7 +34,7 @@ fn main() {
 
     let steps = Steps {
         batch_size: 16_384,
-        batches_per_superbatch: 128,
+        batches_per_superbatch: 1024,
         superbatches: 1,
     };
 

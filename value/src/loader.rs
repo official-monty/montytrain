@@ -34,12 +34,10 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
         let batch_size = self.batch_size;
         let file_path = self.file_path.clone();
 
-        let (batch_sender, batch_reciever) = sync_channel::<(Vec<Tensor>, Tensor, usize)>(2);
-        let (msg_sender, msg_receiver) = sync_channel::<bool>(1);
+        let (buffer_sender, buffer_receiver) = sync_channel::<Vec<(Position, f32)>>(2);
+        let (buffer_msg_sender, buffer_msg_receiver) = sync_channel::<bool>(1);
         
         std::thread::spawn(move || {
-            let mut preallocs = PreAllocs::new(batch_size);
-
             'dataloading: loop {
                 let mut reader = BufReader::new(File::open(file_path.as_str()).unwrap());
 
@@ -51,17 +49,33 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
                     } else {
                         shuffle(&mut shuffle_buffer);
 
-                        for batch in shuffle_buffer.chunks(batch_size) {
-                            let (xs, targets) = Self::get_batch_inputs(device, batch, &mut preallocs);
-
-                            if msg_receiver.try_recv().unwrap_or(false) {
-                                break 'dataloading;
-                            } else {
-                                batch_sender.send((xs, targets, batch.len())).unwrap();
-                            }
+                        if buffer_msg_receiver.try_recv().unwrap_or(false) {
+                            break 'dataloading;
+                        } else {
+                            buffer_sender.send(shuffle_buffer).unwrap();
                         }
 
-                        shuffle_buffer.clear();
+                        shuffle_buffer = Vec::new();
+                    }
+                }
+            }
+        });
+
+        let (batch_sender, batch_reciever) = sync_channel::<(Vec<Tensor>, Tensor, usize)>(2);
+        let (batch_msg_sender, batch_msg_receiver) = sync_channel::<bool>(1);
+
+        std::thread::spawn(move || {
+            let mut preallocs = PreAllocs::new(batch_size);
+
+            'dataloading: while let Ok(shuffle_buffer) = buffer_receiver.recv() {
+                for batch in shuffle_buffer.chunks(batch_size) {
+                    let (xs, targets) = Self::get_batch_inputs(device, batch, &mut preallocs);
+
+                    if batch_msg_receiver.try_recv().unwrap_or(false) {
+                        buffer_msg_sender.send(true).unwrap();
+                        break 'dataloading;
+                    } else {
+                        batch_sender.send((xs, targets, batch.len())).unwrap();
                     }
                 }
             }
@@ -71,7 +85,7 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
             let should_break = f(&inputs);
 
             if should_break {
-                msg_sender.send(true).unwrap();
+                batch_msg_sender.send(true).unwrap();
                 break;
             }
         }
