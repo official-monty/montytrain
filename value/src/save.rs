@@ -2,7 +2,7 @@ use std::io::Write;
 
 use tch::nn;
 
-use crate::arch::{DK, DV, INPUTS, TOKENS};
+use crate::arch::{DK, DV, INPUTS, PIECE_TOKENS, TOKENS};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -17,9 +17,9 @@ pub struct Layer<const M: usize, const N: usize> {
 
 #[repr(C)]
 pub struct SavedNetworkFormat {
-    pub wq: [[Accumulator<{DK as usize}>; INPUTS as usize]; TOKENS as usize - 1],
-    pub wk: [[Accumulator<{DK as usize}>; INPUTS as usize]; TOKENS as usize - 1],
-    pub wv: [[Accumulator<{DV as usize}>; INPUTS as usize]; TOKENS as usize - 1],
+    pub wq: [[Accumulator<{DK as usize}>; INPUTS as usize]; PIECE_TOKENS as usize],
+    pub wk: [[Accumulator<{DK as usize}>; INPUTS as usize]; PIECE_TOKENS as usize],
+    pub wv: [[Accumulator<{DV as usize}>; INPUTS as usize]; PIECE_TOKENS as usize],
     pub wq_board: [Accumulator<{DK as usize}>; 768],
     pub wk_board: [Accumulator<{DK as usize}>; 768],
     pub wv_board: [Accumulator<{DV as usize}>; 768],

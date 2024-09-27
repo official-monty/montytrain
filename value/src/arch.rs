@@ -6,7 +6,9 @@ use tch::{
 use crate::{loader::{DataLoader, PreAllocs}, save::SavedNetworkFormat};
 
 pub const INPUTS: i64 = 256;
-pub const TOKENS: i64 = 13;
+pub const PIECE_TOKENS: i64 = 12;
+pub const BOARD_TOKENS: i64 = 1;
+pub const TOKENS: i64 = PIECE_TOKENS + BOARD_TOKENS;
 pub const DK: i64 = 32;
 pub const DV: i64 = 64;
 
@@ -62,11 +64,13 @@ impl ValueNetwork {
             out: OutputHead::new(vs),
         };
 
-        for _ in 0..TOKENS - 1 {
+        for _ in 0..PIECE_TOKENS {
             net.qkvs.push(QKVEmbedding::new(vs, INPUTS));
         }
 
-        net.qkvs.push(QKVEmbedding::new(vs, 768));
+        for _ in 0..BOARD_TOKENS {
+            net.qkvs.push(QKVEmbedding::new(vs, 768));
+        }
 
         net
     }
@@ -97,15 +101,17 @@ impl ValueNetwork {
     pub fn export(&self) -> Box<SavedNetworkFormat> {
         let mut net = SavedNetworkFormat::boxed_and_zeroed();
 
-        for (i, qkv) in self.qkvs.iter().enumerate().take(TOKENS as usize - 1) {
+        for (i, qkv) in self.qkvs.iter().enumerate().take(PIECE_TOKENS as usize) {
             SavedNetworkFormat::write_linear_into_matrix(&qkv.q, &mut net.wq[i]);
             SavedNetworkFormat::write_linear_into_matrix(&qkv.k, &mut net.wk[i]);
             SavedNetworkFormat::write_linear_into_matrix(&qkv.v, &mut net.wv[i]);
         }
 
-        SavedNetworkFormat::write_linear_into_matrix(&self.qkvs[TOKENS as usize - 1].q, &mut net.wq_board);
-        SavedNetworkFormat::write_linear_into_matrix(&self.qkvs[TOKENS as usize - 1].k, &mut net.wk_board);
-        SavedNetworkFormat::write_linear_into_matrix(&self.qkvs[TOKENS as usize - 1].v, &mut net.wv_board);
+        for qkv in self.qkvs.iter().skip(PIECE_TOKENS as usize) {
+            SavedNetworkFormat::write_linear_into_matrix(&qkv.q, &mut net.wq_board);
+            SavedNetworkFormat::write_linear_into_matrix(&qkv.k, &mut net.wk_board);
+            SavedNetworkFormat::write_linear_into_matrix(&qkv.v, &mut net.wv_board);
+        }
 
         SavedNetworkFormat::write_linear_into_layer(&self.out.l1, &mut net.l1);
         SavedNetworkFormat::write_linear_into_layer(&self.out.l2, &mut net.l2);
@@ -167,7 +173,7 @@ pub fn map_value_features<F: FnMut(usize, usize)>(pos: &Position, mut f: F) {
                 let state = usize::from(bit & threats > 0) + 2 * usize::from(bit & defences > 0);
 
                 f(piece_idx, 64 * state + (sq ^ flip));
-                f(TOKENS as usize - 1, 384 * stm + 64 * (piece - 2) + (sq ^ flip));
+                f(PIECE_TOKENS as usize, 384 * stm + 64 * (piece - 2) + (sq ^ flip));
 
                 bb &= bb - 1;
             }
