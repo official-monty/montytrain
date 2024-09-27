@@ -35,13 +35,13 @@ fn main() {
     let steps = Steps {
         batch_size: 16_384,
         batches_per_superbatch: 6104,
-        superbatches: 160,
+        superbatches: 40,
     };
 
     let lr_schedule = LRSchedule {
         start: 0.001,
         gamma: 0.1,
-        step: 60,
+        step: 18,
     };
 
     let local_settings = LocalSettings {
