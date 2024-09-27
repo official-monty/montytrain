@@ -84,8 +84,9 @@ pub fn train<N: Network, D: DataLoader<N>>(
 
         batch_no += 1;
         if batch_no % local_settings.print_rate == 0 {
+            print!("\r\x1b[K");
             print!(
-                "> Superbatch {}/{sbs} Batch {}/{bpsb} Current Loss {this_loss:.4} Time {}ms\r",
+                "> Superbatch {}/{sbs} Batch {}/{bpsb} Current Loss {this_loss:.4} Time {}ms",
                 sb + 1,
                 batch_no % bpsb,
                 window_time
@@ -99,6 +100,8 @@ pub fn train<N: Network, D: DataLoader<N>>(
             t = Instant::now();
 
             sb += 1;
+
+            print!("\r\x1b[K");
             println!(
                 "> Superbatch {sb}/{sbs} Running Loss {} Time {:.2}s",
                 running_error / bpsb as f32,
