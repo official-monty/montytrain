@@ -34,8 +34,8 @@ fn main() {
 
     let steps = Steps {
         batch_size: 16_384,
-        batches_per_superbatch: 6104,
-        superbatches: 40,
+        batches_per_superbatch: 128,
+        superbatches: 1,
     };
 
     let lr_schedule = LRSchedule {

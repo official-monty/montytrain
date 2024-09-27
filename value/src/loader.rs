@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufReader};
+use std::{fs::File, io::BufReader, sync::mpsc::sync_channel};
 
 use common::Rand;
 
@@ -32,29 +32,47 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
 
         let mut preallocs = PreAllocs::new(self.batch_size);
 
-        'dataloading: loop {
-            let mut reader = BufReader::new(File::open(self.file_path.as_str()).unwrap());
+        let (sender, reciever) = sync_channel::<(Vec<Tensor>, Tensor, usize)>(2);
+        let (msg_sender, msg_receiver) = sync_channel::<bool>(1);
 
-            while let Ok(game) = MontyValueFormat::deserialise_from(&mut reader, Vec::new()) {
-                parse_into_buffer(game, &mut reusable_buffer);
+        let device = self.device;
+        let batch_size = self.batch_size;
+        let file_path = self.file_path.clone();
+        
+        std::thread::spawn(move || {
+            'dataloading: loop {
+                let mut reader = BufReader::new(File::open(file_path.as_str()).unwrap());
 
-                if shuffle_buffer.len() + reusable_buffer.len() < shuffle_buffer.capacity() {
-                    shuffle_buffer.extend_from_slice(&reusable_buffer);
-                } else {
-                    shuffle(&mut shuffle_buffer);
+                while let Ok(game) = MontyValueFormat::deserialise_from(&mut reader, Vec::new()) {
+                    parse_into_buffer(game, &mut reusable_buffer);
 
-                    for batch in shuffle_buffer.chunks(self.batch_size) {
-                        let (xs, targets) = Self::get_batch_inputs(self.device, batch, &mut preallocs);
+                    if shuffle_buffer.len() + reusable_buffer.len() < shuffle_buffer.capacity() {
+                        shuffle_buffer.extend_from_slice(&reusable_buffer);
+                    } else {
+                        shuffle(&mut shuffle_buffer);
 
-                        let should_break = f(&(xs, targets, batch.len()));
+                        for batch in shuffle_buffer.chunks(batch_size) {
+                            let (xs, targets) = Self::get_batch_inputs(device, batch, &mut preallocs);
 
-                        if should_break {
-                            break 'dataloading;
+                            if msg_receiver.try_recv().unwrap_or(false) {
+                                break 'dataloading;
+                            } else {
+                                sender.send((xs, targets, batch.len())).unwrap();
+                            }
                         }
-                    }
 
-                    shuffle_buffer.clear();
+                        shuffle_buffer.clear();
+                    }
                 }
+            }
+        });
+
+        while let Ok(inputs) = reciever.recv() {
+            let should_break = f(&inputs);
+
+            if should_break {
+                msg_sender.send(true).unwrap();
+                break;
             }
         }
     }
