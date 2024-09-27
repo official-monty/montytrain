@@ -30,6 +30,7 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
         let mut shuffle_buffer = Vec::new();
         shuffle_buffer.reserve_exact(self.buffer_size);
 
+        let buffer_size = self.buffer_size;
         let device = self.device;
         let batch_size = self.batch_size;
         let file_path = self.file_path.clone();
@@ -56,6 +57,7 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
                         }
 
                         shuffle_buffer = Vec::new();
+                        shuffle_buffer.reserve_exact(buffer_size);
                     }
                 }
             }
