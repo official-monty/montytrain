@@ -35,14 +35,18 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
         let batch_size = self.batch_size;
         let file_path = self.file_path.clone();
 
-        let (buffer_sender, buffer_receiver) = sync_channel::<Vec<(Position, f32)>>(2);
-        let (buffer_msg_sender, buffer_msg_receiver) = sync_channel::<bool>(1);
+        let (buffer_sender, buffer_receiver) = sync_channel::<Vec<(Position, f32)>>(1);
+        let (buffer_msg_sender, buffer_msg_receiver) = sync_channel::<bool>(0);
         
         std::thread::spawn(move || {
             'dataloading: loop {
                 let mut reader = BufReader::new(File::open(file_path.as_str()).unwrap());
 
                 while let Ok(game) = MontyValueFormat::deserialise_from(&mut reader, Vec::new()) {
+                    if buffer_msg_receiver.try_recv().unwrap_or(false) {
+                        break 'dataloading;
+                    }
+
                     parse_into_buffer(game, &mut reusable_buffer);
 
                     if shuffle_buffer.len() + reusable_buffer.len() < shuffle_buffer.capacity() {
@@ -63,8 +67,8 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
             }
         });
 
-        let (batch_sender, batch_reciever) = sync_channel::<(Vec<Tensor>, Tensor, usize)>(2);
-        let (batch_msg_sender, batch_msg_receiver) = sync_channel::<bool>(1);
+        let (batch_sender, batch_reciever) = sync_channel::<(Vec<Tensor>, Tensor, usize)>(1);
+        let (batch_msg_sender, batch_msg_receiver) = sync_channel::<bool>(0);
 
         std::thread::spawn(move || {
             let mut preallocs = PreAllocs::new(batch_size);
