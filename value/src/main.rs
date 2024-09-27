@@ -34,8 +34,8 @@ fn main() {
 
     let steps = Steps {
         batch_size: 16_384,
-        batches_per_superbatch: 1024,
-        superbatches: 1,
+        batches_per_superbatch: 6104,
+        superbatches: 40,
     };
 
     let lr_schedule = LRSchedule {
@@ -49,7 +49,7 @@ fn main() {
         data_path: "../binpacks/p.binpack",
         save_rate: 10,
         print_rate: 16,
-        buffer_size_mb: 512,
+        buffer_size_mb: 4096,
     };
 
     let device = Device::cuda_if_available();
