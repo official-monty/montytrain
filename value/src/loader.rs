@@ -30,16 +30,16 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
         let mut shuffle_buffer = Vec::new();
         shuffle_buffer.reserve_exact(self.buffer_size);
 
-        let mut preallocs = PreAllocs::new(self.batch_size);
-
-        let (sender, reciever) = sync_channel::<(Vec<Tensor>, Tensor, usize)>(2);
-        let (msg_sender, msg_receiver) = sync_channel::<bool>(1);
-
         let device = self.device;
         let batch_size = self.batch_size;
         let file_path = self.file_path.clone();
+
+        let (batch_sender, batch_reciever) = sync_channel::<(Vec<Tensor>, Tensor, usize)>(2);
+        let (msg_sender, msg_receiver) = sync_channel::<bool>(1);
         
         std::thread::spawn(move || {
+            let mut preallocs = PreAllocs::new(batch_size);
+
             'dataloading: loop {
                 let mut reader = BufReader::new(File::open(file_path.as_str()).unwrap());
 
@@ -57,7 +57,7 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
                             if msg_receiver.try_recv().unwrap_or(false) {
                                 break 'dataloading;
                             } else {
-                                sender.send((xs, targets, batch.len())).unwrap();
+                                batch_sender.send((xs, targets, batch.len())).unwrap();
                             }
                         }
 
@@ -67,7 +67,7 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
             }
         });
 
-        while let Ok(inputs) = reciever.recv() {
+        while let Ok(inputs) = batch_reciever.recv() {
             let should_break = f(&inputs);
 
             if should_break {
