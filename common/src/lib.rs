@@ -5,16 +5,16 @@ pub use rng::Rand;
 use std::{io::Write, time::Instant};
 
 use tch::{
-    nn::{self, Optimizer, OptimizerConfig},
+    nn::Optimizer,
     Device, TchError,
 };
 
 pub trait Network {
     type Inputs;
 
-    fn new(vs: &nn::Path) -> Self;
-
     fn run_batch(&self, opt: &mut Optimizer, inputs: &Self::Inputs) -> f32;
+
+    fn save(&self, path: &str);
 }
 
 pub trait DataLoader<N: Network> {
@@ -37,27 +37,36 @@ pub struct LRSchedule {
     pub step: usize,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct LocalSettings {
+    pub output_path: &'static str,
+    pub data_path: &'static str,
+    pub save_rate: usize,
+    pub print_rate: usize,
+    pub buffer_size_mb: usize,
+}
+
 pub fn train<N: Network, D: DataLoader<N>>(
-    output_path: &str,
-    data_path: &str,
-    buffer_size_mb: usize,
+    device: Device,
+    net: &N,
+    opt: &mut Optimizer,
     steps: Steps,
     lr_schedule: LRSchedule,
-    save_rate: usize,
-    print_rate: usize,
+    local_settings: LocalSettings,
 ) -> Result<(), TchError> {
-    let device = Device::cuda_if_available();
-    let vs = nn::VarStore::new(device);
-    let net = N::new(&vs.root());
+    println!("Device: {device:?}");
 
-    let data_loader = D::new(data_path, buffer_size_mb, steps.batch_size, device);
+    let data_loader = D::new(
+        local_settings.data_path,
+        local_settings.buffer_size_mb,
+        steps.batch_size,
+        device,
+    );
 
     let bpsb = steps.batches_per_superbatch;
     let sbs = steps.superbatches;
 
     let mut lr = lr_schedule.start;
-
-    let mut opt = nn::Adam::default().build(&vs, lr.into())?;
 
     let mut running_error = 0.0;
     let mut sb = 0;
@@ -69,12 +78,12 @@ pub fn train<N: Network, D: DataLoader<N>>(
 
     data_loader.map_batches(|inputs| {
         let t2 = Instant::now();
-        let this_loss = net.run_batch(&mut opt, inputs);
+        let this_loss = net.run_batch(opt, inputs);
         window_time += t2.elapsed().as_millis();
         running_error += this_loss;
 
         batch_no += 1;
-        if batch_no % print_rate == 0 {
+        if batch_no % local_settings.print_rate == 0 {
             print!(
                 "> Superbatch {}/{sbs} Batch {}/{bpsb} Current Loss {this_loss:.4} Time {}ms\r",
                 sb + 1,
@@ -113,9 +122,8 @@ pub fn train<N: Network, D: DataLoader<N>>(
 
             opt.set_lr(lr.into());
 
-            if sb % save_rate == 0 {
-                vs.save(format!("{output_path}/network-{sb}.pt").as_str())
-                    .unwrap();
+            if sb % local_settings.save_rate == 0 {
+                net.save(format!("{}/network-{sb}.network", local_settings.output_path).as_str())
             }
 
             sb == sbs
