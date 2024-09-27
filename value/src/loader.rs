@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufReader};
+use std::{fs::File, io::BufReader, sync::mpsc::sync_channel};
 
 use common::Rand;
 
@@ -30,31 +30,69 @@ impl common::DataLoader<ValueNetwork> for DataLoader {
         let mut shuffle_buffer = Vec::new();
         shuffle_buffer.reserve_exact(self.buffer_size);
 
-        let mut preallocs = PreAllocs::new(self.batch_size);
+        let buffer_size = self.buffer_size;
+        let device = self.device;
+        let batch_size = self.batch_size;
+        let file_path = self.file_path.clone();
 
-        'dataloading: loop {
-            let mut reader = BufReader::new(File::open(self.file_path.as_str()).unwrap());
+        let (buffer_sender, buffer_receiver) = sync_channel::<Vec<(Position, f32)>>(1);
+        let (buffer_msg_sender, buffer_msg_receiver) = sync_channel::<bool>(0);
+        
+        std::thread::spawn(move || {
+            'dataloading: loop {
+                let mut reader = BufReader::new(File::open(file_path.as_str()).unwrap());
 
-            while let Ok(game) = MontyValueFormat::deserialise_from(&mut reader, Vec::new()) {
-                parse_into_buffer(game, &mut reusable_buffer);
-
-                if shuffle_buffer.len() + reusable_buffer.len() < shuffle_buffer.capacity() {
-                    shuffle_buffer.extend_from_slice(&reusable_buffer);
-                } else {
-                    shuffle(&mut shuffle_buffer);
-
-                    for batch in shuffle_buffer.chunks(self.batch_size) {
-                        let (xs, targets) = Self::get_batch_inputs(self.device, batch, &mut preallocs);
-
-                        let should_break = f(&(xs, targets, batch.len()));
-
-                        if should_break {
-                            break 'dataloading;
-                        }
+                while let Ok(game) = MontyValueFormat::deserialise_from(&mut reader, Vec::new()) {
+                    if buffer_msg_receiver.try_recv().unwrap_or(false) {
+                        break 'dataloading;
                     }
 
-                    shuffle_buffer.clear();
+                    parse_into_buffer(game, &mut reusable_buffer);
+
+                    if shuffle_buffer.len() + reusable_buffer.len() < shuffle_buffer.capacity() {
+                        shuffle_buffer.extend_from_slice(&reusable_buffer);
+                    } else {
+                        shuffle(&mut shuffle_buffer);
+
+                        if buffer_msg_receiver.try_recv().unwrap_or(false) {
+                            break 'dataloading;
+                        } else {
+                            buffer_sender.send(shuffle_buffer).unwrap();
+                        }
+
+                        shuffle_buffer = Vec::new();
+                        shuffle_buffer.reserve_exact(buffer_size);
+                    }
                 }
+            }
+        });
+
+        let (batch_sender, batch_reciever) = sync_channel::<(Vec<Tensor>, Tensor, usize)>(1);
+        let (batch_msg_sender, batch_msg_receiver) = sync_channel::<bool>(0);
+
+        std::thread::spawn(move || {
+            let mut preallocs = PreAllocs::new(batch_size);
+
+            'dataloading: while let Ok(shuffle_buffer) = buffer_receiver.recv() {
+                for batch in shuffle_buffer.chunks(batch_size) {
+                    let (xs, targets) = Self::get_batch_inputs(device, batch, &mut preallocs);
+
+                    if batch_msg_receiver.try_recv().unwrap_or(false) {
+                        buffer_msg_sender.send(true).unwrap();
+                        break 'dataloading;
+                    } else {
+                        batch_sender.send((xs, targets, batch.len())).unwrap();
+                    }
+                }
+            }
+        });
+
+        while let Ok(inputs) = batch_reciever.recv() {
+            let should_break = f(&inputs);
+
+            if should_break {
+                batch_msg_sender.send(true).unwrap();
+                break;
             }
         }
     }
