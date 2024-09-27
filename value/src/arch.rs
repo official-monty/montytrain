@@ -5,10 +5,8 @@ use tch::{
 
 use crate::{loader::{DataLoader, PreAllocs}, save::SavedNetworkFormat};
 
-pub const INPUTS: i64 = 256;
-pub const PIECE_TOKENS: i64 = 12;
-pub const BOARD_TOKENS: i64 = 1;
-pub const TOKENS: i64 = PIECE_TOKENS + BOARD_TOKENS;
+pub const INPUTS: i64 = 768;
+pub const TOKENS: i64 = 3;
 pub const DK: i64 = 32;
 pub const DV: i64 = 64;
 
@@ -64,12 +62,8 @@ impl ValueNetwork {
             out: OutputHead::new(vs),
         };
 
-        for _ in 0..PIECE_TOKENS {
+        for _ in 0..TOKENS {
             net.qkvs.push(QKVEmbedding::new(vs, INPUTS));
-        }
-
-        for _ in 0..BOARD_TOKENS {
-            net.qkvs.push(QKVEmbedding::new(vs, 768));
         }
 
         net
@@ -101,16 +95,10 @@ impl ValueNetwork {
     pub fn export(&self) -> Box<SavedNetworkFormat> {
         let mut net = SavedNetworkFormat::boxed_and_zeroed();
 
-        for (i, qkv) in self.qkvs.iter().enumerate().take(PIECE_TOKENS as usize) {
+        for (i, qkv) in self.qkvs.iter().enumerate() {
             SavedNetworkFormat::write_linear_into_matrix(&qkv.q, &mut net.wq[i]);
             SavedNetworkFormat::write_linear_into_matrix(&qkv.k, &mut net.wk[i]);
             SavedNetworkFormat::write_linear_into_matrix(&qkv.v, &mut net.wv[i]);
-        }
-
-        for qkv in self.qkvs.iter().skip(PIECE_TOKENS as usize) {
-            SavedNetworkFormat::write_linear_into_matrix(&qkv.q, &mut net.wq_board);
-            SavedNetworkFormat::write_linear_into_matrix(&qkv.k, &mut net.wk_board);
-            SavedNetworkFormat::write_linear_into_matrix(&qkv.v, &mut net.wv_board);
         }
 
         SavedNetworkFormat::write_linear_into_layer(&self.out.l1, &mut net.l1);
@@ -163,17 +151,24 @@ pub fn map_value_features<F: FnMut(usize, usize)>(pos: &Position, mut f: F) {
 
     for (stm, &side) in [pos.stm(), 1 - pos.stm()].iter().enumerate() {
         for piece in Piece::PAWN..=Piece::KING {
-            let piece_idx = 6 * stm + piece - 2;
+            let base = 384 * stm + 64 * (piece - 2);
 
             let mut bb = pos.piece(side) & pos.piece(piece);
             while bb > 0 {
                 let sq = bb.trailing_zeros() as usize;
 
                 let bit = 1 << sq;
-                let state = usize::from(bit & threats > 0) + 2 * usize::from(bit & defences > 0);
+                let feat = base + (sq ^ flip);
 
-                f(piece_idx, 64 * state + (sq ^ flip));
-                f(PIECE_TOKENS as usize, 384 * stm + 64 * (piece - 2) + (sq ^ flip));
+                f(0, feat);
+                
+                if bit & threats > 0 {
+                    f(1, feat);
+                }
+
+                if bit & defences > 0 {
+                    f(2, feat);
+                }
 
                 bb &= bb - 1;
             }

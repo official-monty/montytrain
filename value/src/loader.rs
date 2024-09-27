@@ -5,7 +5,7 @@ use common::Rand;
 use montyformat::{chess::Position, MontyValueFormat};
 use tch::{Device, Kind, Tensor};
 
-use crate::arch::{self, ValueNetwork, PIECE_TOKENS, TOKENS};
+use crate::arch::{self, ValueNetwork, TOKENS};
 
 pub struct DataLoader {
     file_path: String,
@@ -107,17 +107,12 @@ impl PreAllocs {
             targets: Vec::with_capacity(batch_size),
         };
 
-        for _ in 0..PIECE_TOKENS {
+        for _ in 0..TOKENS {
             preallocs.feat_indices.push([
-                Vec::with_capacity(batch_size * 8),
-                Vec::with_capacity(batch_size * 8),
+                Vec::with_capacity(batch_size * 32),
+                Vec::with_capacity(batch_size * 32),
             ]);
         }
-
-        preallocs.feat_indices.push([
-            Vec::with_capacity(batch_size * 32),
-            Vec::with_capacity(batch_size * 32),
-        ]);
 
         preallocs
     }
@@ -164,12 +159,8 @@ fn get_tensors(batch: &[(Position, f32)], preallocs: &mut PreAllocs) -> (Vec<Ten
         xs.push(x);
     };
 
-    for p in preallocs.feat_indices.iter().take(PIECE_TOKENS as usize) {
+    for p in preallocs.feat_indices.iter() {
         push_inputs(p, arch::INPUTS);
-    }
-
-    for p in preallocs.feat_indices.iter().skip(PIECE_TOKENS as usize) {
-        push_inputs(p, 768);
     }
 
     let targets = Tensor::from_slice(&preallocs.targets);
