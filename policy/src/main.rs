@@ -1,78 +1,63 @@
-mod arch;
+mod inputs;
 mod loader;
+mod moves;
+mod trainer;
+mod preparer;
 
-use arch::PolicyNetwork;
-use common::{LocalSettings, LRSchedule, Steps};
-use loader::DataLoader;
-
-use tch::{nn::{self, Optimizer, OptimizerConfig}, Device, Kind, Tensor};
-
-impl common::Network for PolicyNetwork {
-    type Inputs = (Tensor, Tensor, Tensor, usize);
-
-    fn run_batch(
-        &self,
-        opt: &mut Optimizer,
-        (xs, legal_mask, targets, batch_size): &Self::Inputs,
-    ) -> f32 {
-        let raw_logits = self.forward_raw(xs, *batch_size as i64);
-
-        let masked = raw_logits.masked_fill(legal_mask, f64::NEG_INFINITY);
-
-        let log_softmaxed = masked.log_softmax(1, Kind::Float);
-
-        let masked_softmaxed = log_softmaxed.masked_fill(legal_mask, 0.0);
-
-        let losses = -targets * masked_softmaxed;
-
-        let loss = losses.sum(Kind::Float).divide_scalar(*batch_size as f64);
-
-        opt.backward_step(&loss);
-
-        tch::no_grad(|| f32::try_from(loss).unwrap())
-    }
-
-    fn save(&self, _: &str) {}
-}
+use bullet::{lr, operations, optimiser::{AdamWOptimiser, AdamWParams, Optimiser}, wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, Shape, TrainingSchedule, TrainingSteps};
+use trainer::Trainer;
 
 fn main() {
-    let mut args = std::env::args();
-    args.next();
-    let buffer_size_mb = args.next().unwrap().parse().unwrap();
+    println!("{}", moves::NUM_MOVES);
+    let data_preparer = preparer::DataPreparer::new("../binpacks/policygen6", 4096);
+    let graph = network(512);
 
-    let steps = Steps {
-        batch_size: 16_384,
-        batches_per_superbatch: 1024,
-        superbatches: 32,
+    let mut trainer = Trainer {
+        optimiser: AdamWOptimiser::new(graph, AdamWParams::default()),
     };
 
-    let lr_schedule = LRSchedule {
-        start: 0.01,
-        gamma: 0.1,
-        step: 14,
+    let schedule = TrainingSchedule {
+        net_id: "policy001".to_string(),
+        eval_scale: 400.0,
+        steps: TrainingSteps {
+            batch_size: 16_384,
+            batches_per_superbatch: 6104,
+            start_superbatch: 1,
+            end_superbatch: 240,
+        },
+        wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.3, step: 60 },
+        save_rate: 150,
     };
 
-    let local_settings = LocalSettings {
-        output_path: "checkpoints/policy",
-        data_path: "data/policygen6.binpack",
-        save_rate: 10,
-        print_rate: 16,
-        buffer_size_mb,
+    let settings = LocalSettings {
+        threads: 4,
+        test_set: None,
+        output_directory: "checkpoints",
+        batch_queue_size: 512,
     };
 
-    let device = Device::cuda_if_available();
-    let vs = nn::VarStore::new(device);
-    let net = PolicyNetwork::randomised(&vs.root());
+    trainer.train_custom(&data_preparer, &Option::<preparer::DataPreparer>::None, &schedule, &settings, |_, _, _, _| {});
+}
 
-    let mut opt = nn::Adam::default().build(&vs, lr_schedule.start.into()).unwrap();
+fn network(size: usize) -> Graph {
+    let mut builder = GraphBuilder::default();
 
-    common::train::<PolicyNetwork, DataLoader>(
-        device,
-        &net,
-        &mut opt,
-        steps,
-        lr_schedule,
-        local_settings,
-    )
-    .unwrap();
+    let inputs = builder.create_input("inputs", Shape::new(inputs::INPUT_SIZE, 1));
+    let dist = builder.create_input("dist", Shape::new(moves::NUM_MOVES, 1));
+
+    let l0w = builder.create_weights("l0w", Shape::new(size, inputs::INPUT_SIZE));
+    let l0b = builder.create_weights("l0b", Shape::new(size, 1));
+
+    let l1w = builder.create_weights("l1w", Shape::new(moves::NUM_MOVES, size));
+    let l1b = builder.create_weights("l1b", Shape::new(moves::NUM_MOVES, 1));
+
+    let l1 = operations::affine(&mut builder, l0w, inputs, l0b);
+    let l1a = operations::activate(&mut builder, l1, Activation::SCReLU);
+    let l2 = operations::affine(&mut builder, l1w, l1a, l1b);
+
+    operations::softmax_crossentropy_loss(&mut builder, l2, dist);
+
+    let ctx = ExecutionContext::default();
+    builder.build(ctx)
 }
