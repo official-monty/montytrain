@@ -4,13 +4,19 @@ mod moves;
 mod trainer;
 mod preparer;
 
-use bullet::{lr, operations, optimiser::{AdamWOptimiser, AdamWParams, Optimiser}, wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, Shape, TrainingSchedule, TrainingSteps};
+use bullet::{logger, lr, operations, optimiser::{AdamWOptimiser, AdamWParams, Optimiser}, wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, Shape, TrainingSchedule, TrainingSteps};
 use trainer::Trainer;
 
 fn main() {
     println!("{}", moves::NUM_MOVES);
-    let data_preparer = preparer::DataPreparer::new("../binpacks/policygen6", 4096);
-    let graph = network(512);
+    let data_preparer = preparer::DataPreparer::new("../binpacks/policygen9.binpack", 4096);
+
+    let size = 128;
+
+    let mut graph = network(size);
+
+    graph.get_weights_mut("l0w").seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
+    graph.get_weights_mut("l1w").seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
 
     let mut trainer = Trainer {
         optimiser: AdamWOptimiser::new(graph, AdamWParams::default()),
@@ -21,9 +27,9 @@ fn main() {
         eval_scale: 400.0,
         steps: TrainingSteps {
             batch_size: 16_384,
-            batches_per_superbatch: 6104,
+            batches_per_superbatch: 1024,
             start_superbatch: 1,
-            end_superbatch: 240,
+            end_superbatch: 60,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
         lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.3, step: 60 },
@@ -34,8 +40,13 @@ fn main() {
         threads: 4,
         test_set: None,
         output_directory: "checkpoints",
-        batch_queue_size: 512,
+        batch_queue_size: 64,
     };
+
+    logger::clear_colours();
+    println!("{}", logger::ansi("Beginning Training", "34;1"));
+    schedule.display();
+    settings.display();
 
     trainer.train_custom(&data_preparer, &Option::<preparer::DataPreparer>::None, &schedule, &settings, |_, _, _, _| {});
 }

@@ -29,7 +29,7 @@ impl NetworkTrainer for Trainer {
         }
 
         let dist = &prepared.dist;
-        graph.get_input_mut("targets").load_dense_from_slice(dist.shape, &dist.value);
+        graph.get_input_mut("dist").load_dense_from_slice(dist.shape, &dist.value);
 
         batch_size
     }

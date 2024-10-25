@@ -105,9 +105,9 @@ impl PreparedData {
 
                         for &(mov, visits) in &point.moves[..point.num] {
                             let idx = map_move_to_index(&point.pos, Move::from(mov));
-                            
+                            assert!(idx < NUM_MOVES, "{idx} >= {NUM_MOVES}");
                             total += visits;
-                            dist_chunk[dist_offset + idx] = f32::from(visits);
+                            dist_chunk[dist_offset + idx] += f32::from(visits);
                         }
 
                         let total = f32::from(total);

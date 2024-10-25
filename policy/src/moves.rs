@@ -1,14 +1,22 @@
-use montyformat::chess::{Move, Position, Side};
+use montyformat::chess::{Move, Piece, Position, Side};
 
-pub const NUM_MOVES: usize = OFFSETS[64];
+pub const NUM_MOVES: usize = 384;//OFFSETS[64];
 
 pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
+    let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
+    let pc = pos.get_pc(1 << mov.src()) - Piece::PAWN;
+    let dest = usize::from(mov.to() ^ flip);
+
+    64 * pc + dest
+}
+
+#[allow(unused)]
+pub fn _map_move_to_index(pos: &Position, mov: Move) -> usize {
     let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
     let from = usize::from(mov.src() ^ flip);
     let dest = usize::from(mov.to() ^ flip);
 
-    let above = (1 << dest) - 1;
-    let below = ALL_DESTINATIONS[dest] & !above;
+    let below = ALL_DESTINATIONS[from] & ((1 << dest) - 1);
 
     OFFSETS[from] + below.count_ones() as usize
 }
@@ -47,7 +55,7 @@ const ALL_DESTINATIONS: [u64; 64] = init!(|sq, 64| {
     let file = sq % 8;
 
     let rooks = (0xFF << (rank * 8)) ^ (A << file);
-    let bishops = DIAGS[file + rank] ^ DIAGS[7 + file - rank];
+    let bishops = DIAGS[file + rank].swap_bytes() ^ DIAGS[7 + file - rank];
 
     rooks | bishops | KNIGHT[sq] | KING[sq]
 });
@@ -87,3 +95,17 @@ const KING: [u64; 64] = init!(|sq, 64| {
     k |= ((k & !A) >> 1) | ((k & !H) << 1);
     k ^ (1 << sq)
 });
+
+#[cfg(test)]
+mod test {
+    use montyformat::chess::{Flag, Move, Position};
+
+    use crate::moves::{map_move_to_index, NUM_MOVES};
+
+    #[test]
+    fn test_count() {
+        let mov = Move::new(63, 62, Flag::QUIET);
+        let pos = Position::default();
+        assert_eq!(map_move_to_index(&pos, mov), NUM_MOVES - 1);
+    }
+}
