@@ -17,9 +17,9 @@ pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
         let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
         let from = usize::from(mov.src() ^ flip);
         let dest = usize::from(mov.to() ^ flip);
-    
+
         let below = ALL_DESTINATIONS[from] & ((1 << dest) - 1);
-    
+
         OFFSETS[from] + below.count_ones() as usize
     };
 
@@ -67,7 +67,6 @@ const ALL_DESTINATIONS: [u64; 64] = init!(|sq, 64| {
 
 const A: u64 = 0x0101_0101_0101_0101;
 const H: u64 = A << 7;
-
 
 const DIAGS: [u64; 15] = [
     0x0100_0000_0000_0000,

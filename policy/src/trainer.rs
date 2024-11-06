@@ -1,4 +1,7 @@
-use bullet::{optimiser::{AdamWOptimiser, Optimiser}, NetworkTrainer};
+use bullet::{
+    optimiser::{AdamWOptimiser, Optimiser},
+    NetworkTrainer,
+};
 
 use crate::preparer::PreparedData;
 
@@ -25,16 +28,26 @@ impl NetworkTrainer for Trainer {
 
         let inputs = &prepared.inputs;
         unsafe {
-            graph.get_input_mut("inputs").load_sparse_from_slice(inputs.shape, inputs.max_active, &inputs.value);
+            graph.get_input_mut("inputs").load_sparse_from_slice(
+                inputs.shape,
+                inputs.max_active,
+                &inputs.value,
+            );
         }
 
         let mask = &prepared.mask;
         unsafe {
-            graph.get_input_mut("mask").load_sparse_from_slice(mask.shape, mask.max_active, &mask.value);
+            graph.get_input_mut("mask").load_sparse_from_slice(
+                mask.shape,
+                mask.max_active,
+                &mask.value,
+            );
         }
 
         let dist = &prepared.dist;
-        graph.get_input_mut("dist").load_dense_from_slice(dist.shape, &dist.value);
+        graph
+            .get_input_mut("dist")
+            .load_dense_from_slice(dist.shape, &dist.value);
 
         batch_size
     }
