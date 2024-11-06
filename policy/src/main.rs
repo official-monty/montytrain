@@ -12,7 +12,7 @@ const ID: &str = "policy001";
 fn main() {
     let data_preparer = preparer::DataPreparer::new("../binpacks/policygen9.binpack", 4096);
 
-    let size = 128;
+    let size = 512;
 
     let mut graph = network(size);
 
@@ -28,12 +28,12 @@ fn main() {
         eval_scale: 400.0,
         steps: TrainingSteps {
             batch_size: 16_384,
-            batches_per_superbatch: 1024,
+            batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 60,
+            end_superbatch: 540,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 25 },
+        lr_scheduler: lr::ExponentialDecayLR { initial_lr: 0.001, final_lr: 0.000001, final_superbatch: 540 },
         save_rate: 10,
     };
 
