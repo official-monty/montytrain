@@ -10,7 +10,6 @@ use trainer::Trainer;
 const ID: &str = "policy001";
 
 fn main() {
-    println!("{}", moves::NUM_MOVES);
     let data_preparer = preparer::DataPreparer::new("../binpacks/policygen9.binpack", 4096);
 
     let size = 128;

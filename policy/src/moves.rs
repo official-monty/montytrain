@@ -4,8 +4,9 @@ pub const MAX_MOVES: usize = 96;
 pub const NUM_MOVES: usize = 2 * (OFFSETS[64] + PROMOS);
 pub const PROMOS: usize = 4 * 22;
 
-#[allow(unused)]
 pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
+    let good_see = (OFFSETS[64] + PROMOS) * usize::from(see(pos, &mov, -108));
+
     let idx = if mov.is_promo() {
         let ffile = mov.src() % 8;
         let tfile = mov.to() % 8;
@@ -22,7 +23,7 @@ pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
         OFFSETS[from] + below.count_ones() as usize
     };
 
-    idx + (OFFSETS[64] + PROMOS) * usize::from(see(pos, &mov, -108))
+    good_see + idx
 }
 
 macro_rules! init {
@@ -113,7 +114,8 @@ fn gain(pos: &Position, mov: &Move) -> i32 {
     score
 }
 
-pub fn see(pos: &Position, mov: &Move, threshold: i32) -> bool {
+#[allow(unused)]
+fn see(pos: &Position, mov: &Move, threshold: i32) -> bool {
     let sq = usize::from(mov.to());
     assert!(sq < 64, "wha");
     let mut next = if mov.is_promo() {

@@ -1,10 +1,18 @@
 use montyformat::chess::{Piece, Position, Side};
 
-pub const INPUT_SIZE: usize = 768;
+pub const INPUT_SIZE: usize = 768 * 4;
 pub const MAX_ACTIVE: usize = 32;
 
 pub fn map_policy_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
     let flip = pos.stm() == Side::BLACK;
+
+    let mut threats = pos.threats_by(pos.stm() ^ 1);
+    let mut defences = pos.threats_by(pos.stm());
+
+    if flip {
+        threats = threats.swap_bytes();
+        defences = defences.swap_bytes();
+    }
 
     for piece in Piece::PAWN..=Piece::KING {
         let pc = 64 * (piece - 2);
@@ -18,12 +26,38 @@ pub fn map_policy_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
         }
 
         while our_bb > 0 {
-            f(pc + our_bb.trailing_zeros() as usize);
+            let sq = our_bb.trailing_zeros();
+            let mut feat = pc + sq as usize;
+
+            let bit = 1 << sq;
+            if threats & bit > 0 {
+                feat += 768;
+            }
+
+            if defences & bit > 0 {
+                feat += 768 * 2;
+            }
+
+            f(feat);
+
             our_bb &= our_bb - 1;
         }
 
         while opp_bb > 0 {
-            f(384 + pc + opp_bb.trailing_zeros() as usize);
+            let sq = opp_bb.trailing_zeros();
+            let mut feat = 384 + pc + sq as usize;
+
+            let bit = 1 << sq;
+            if threats & bit > 0 {
+                feat += 768;
+            }
+
+            if defences & bit > 0 {
+                feat += 768 * 2;
+            }
+
+            f(feat);
+
             opp_bb &= opp_bb - 1;
         }
     }
