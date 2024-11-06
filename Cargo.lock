@@ -11,7 +11,7 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 [[package]]
 name = "bullet_lib"
 version = "1.0.0"
-source = "git+https://github.com/jw1912/bullet?branch=masked-softmax#811e43b492cd5c70fd5fbb4e853a1462d37d9338"
+source = "git+https://github.com/jw1912/bullet#1e014a00a1eb47ecf59e39be31744f4b0e6583a0"
 dependencies = [
  "bulletformat",
  "cc",
