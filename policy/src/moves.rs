@@ -1,5 +1,6 @@
 use montyformat::chess::{Move, Position, Side};
 
+pub const MAX_MOVES: usize = 96;
 pub const NUM_MOVES: usize = OFFSETS[64];
 
 //pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {

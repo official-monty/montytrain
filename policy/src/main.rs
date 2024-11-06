@@ -22,6 +22,9 @@ fn main() {
         optimiser: AdamWOptimiser::new(graph, AdamWParams::default()),
     };
 
+    //trainer.load_from_checkpoint("checkpoints/policy001-60-1");
+    //trainer.save_weights_portion("old.network", &["l0w", "l0b", "l1w", "l1b"]).unwrap();
+
     let schedule = TrainingSchedule {
         net_id: "policy001".to_string(),
         eval_scale: 400.0,
@@ -56,7 +59,7 @@ fn network(size: usize) -> Graph {
 
     let inputs = builder.create_input("inputs", Shape::new(inputs::INPUT_SIZE, 1));
     let mask = builder.create_input("mask", Shape::new(moves::NUM_MOVES, 1));
-    let dist = builder.create_input("dist", Shape::new(moves::NUM_MOVES, 1));
+    let dist = builder.create_input("dist", Shape::new(moves::MAX_MOVES, 1));
 
     let l0w = builder.create_weights("l0w", Shape::new(size, inputs::INPUT_SIZE));
     let l0b = builder.create_weights("l0b", Shape::new(size, 1));
@@ -68,7 +71,7 @@ fn network(size: usize) -> Graph {
     let l1a = operations::activate(&mut builder, l1, Activation::SCReLU);
     let l2 = operations::affine(&mut builder, l1w, l1a, l1b);
 
-    operations::softmax_crossentropy_loss_masked(&mut builder, l2, dist, mask);
+    operations::sparse_softmax_crossentropy_loss_masked(&mut builder, mask, l2, dist);
 
     let ctx = ExecutionContext::default();
     builder.build(ctx)

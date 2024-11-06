@@ -2,7 +2,6 @@ use montyformat::chess::{Piece, Position, Side};
 
 pub const INPUT_SIZE: usize = 768;
 pub const MAX_ACTIVE: usize = 32;
-pub const MAX_MOVES: usize = 96;
 
 pub fn map_policy_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
     let flip = pos.stm() == Side::BLACK;

@@ -2,9 +2,9 @@ use bullet::{loader::DataLoader as Blah, Shape};
 use montyformat::chess::Move;
 
 use crate::{
-    inputs::{map_policy_inputs, INPUT_SIZE, MAX_ACTIVE, MAX_MOVES},
+    inputs::{map_policy_inputs, INPUT_SIZE, MAX_ACTIVE},
     loader::{DataLoader, DecompressedData},
-    moves::{map_move_to_index, NUM_MOVES},
+    moves::{map_move_to_index, NUM_MOVES, MAX_MOVES},
 };
 
 #[derive(Clone)]
@@ -78,8 +78,8 @@ impl PreparedData {
                 value: vec![0; MAX_MOVES * batch_size],
             },
             dist: DenseInput {
-                shape: Shape::new(NUM_MOVES, batch_size),
-                value: vec![0.0; NUM_MOVES * batch_size],
+                shape: Shape::new(MAX_MOVES, batch_size),
+                value: vec![0.0; MAX_MOVES * batch_size],
             },  
         };
 
@@ -88,13 +88,13 @@ impl PreparedData {
                 .chunks(chunk_size)
                 .zip(prep.inputs.value.chunks_mut(MAX_ACTIVE * chunk_size))
                 .zip(prep.mask.value.chunks_mut(MAX_MOVES * chunk_size))
-                .zip(prep.dist.value.chunks_mut(NUM_MOVES * chunk_size))
+                .zip(prep.dist.value.chunks_mut(MAX_MOVES * chunk_size))
             {
                 s.spawn(move || {
                     for (i, point) in data_chunk.iter().enumerate() {
                         let input_offset = MAX_ACTIVE * i;
                         let mask_offset = MAX_MOVES * i;
-                        let dist_offset = NUM_MOVES * i;
+                        let dist_offset = MAX_MOVES * i;
 
                         let mut j = 0;
                         map_policy_inputs(&point.pos, |feat| {
@@ -117,12 +117,9 @@ impl PreparedData {
                             assert!(idx < NUM_MOVES, "{idx} >= {NUM_MOVES}");
                             total += visits;
 
-                            if dist_chunk[dist_offset + idx] == 0.0 {
-                                mask_chunk[mask_offset + distinct] = idx as i32;
-                                distinct += 1; 
-                            }
-
-                            dist_chunk[dist_offset + idx] += f32::from(visits);
+                            mask_chunk[mask_offset + distinct] = idx as i32;
+                            dist_chunk[dist_offset + distinct] = f32::from(visits);
+                            distinct += 1;
                         }
 
                         if distinct < MAX_MOVES {
@@ -131,8 +128,8 @@ impl PreparedData {
 
                         let total = f32::from(total);
 
-                        for &idx in &mask_chunk[mask_offset..mask_offset + distinct] {
-                            dist_chunk[dist_offset + idx as usize] /= total;
+                        for idx in 0..distinct {
+                            dist_chunk[dist_offset + idx] /= total;
                         }
                     }
                 });

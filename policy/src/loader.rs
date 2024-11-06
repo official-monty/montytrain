@@ -2,7 +2,7 @@ use std::{fs::File, io::BufReader, sync::mpsc, time::{SystemTime, UNIX_EPOCH}};
 
 use montyformat::{chess::Position, MontyFormat};
 
-use crate::inputs::MAX_MOVES;
+use crate::moves::MAX_MOVES;
 
 #[derive(Clone, Copy)]
 pub struct DecompressedData {
