@@ -2,7 +2,7 @@ use bullet::{loader::DataLoader as Blah, Shape};
 use montyformat::chess::Move;
 
 use crate::{
-    inputs::{map_policy_inputs, INPUT_SIZE, MAX_ACTIVE},
+    inputs::{map_policy_inputs, INPUT_SIZE, MAX_ACTIVE, MAX_MOVES},
     loader::{DataLoader, DecompressedData},
     moves::{map_move_to_index, NUM_MOVES},
 };
@@ -56,6 +56,7 @@ pub struct SparseInput {
 pub struct PreparedData {
     pub batch_size: usize,
     pub inputs: SparseInput,
+    pub mask: SparseInput,
     pub dist: DenseInput,
 }
 
@@ -71,6 +72,11 @@ impl PreparedData {
                 max_active: MAX_ACTIVE,
                 value: vec![0; MAX_ACTIVE * batch_size],
             },
+            mask: SparseInput {
+                shape: Shape::new(NUM_MOVES, batch_size),
+                max_active: MAX_MOVES,
+                value: vec![0; MAX_MOVES * batch_size],
+            },
             dist: DenseInput {
                 shape: Shape::new(NUM_MOVES, batch_size),
                 value: vec![0.0; NUM_MOVES * batch_size],
@@ -78,14 +84,16 @@ impl PreparedData {
         };
 
         std::thread::scope(|s| {
-            for ((data_chunk, input_chunk), dist_chunk) in data
+            for (((data_chunk, input_chunk), mask_chunk), dist_chunk) in data
                 .chunks(chunk_size)
                 .zip(prep.inputs.value.chunks_mut(MAX_ACTIVE * chunk_size))
+                .zip(prep.mask.value.chunks_mut(MAX_MOVES * chunk_size))
                 .zip(prep.dist.value.chunks_mut(NUM_MOVES * chunk_size))
             {
                 s.spawn(move || {
                     for (i, point) in data_chunk.iter().enumerate() {
                         let input_offset = MAX_ACTIVE * i;
+                        let mask_offset = MAX_MOVES * i;
                         let dist_offset = NUM_MOVES * i;
 
                         let mut j = 0;
@@ -102,19 +110,29 @@ impl PreparedData {
                         assert!(j <= MAX_ACTIVE, "More inputs provided than the specified maximum!");
 
                         let mut total = 0;
+                        let mut distinct = 0;
 
                         for &(mov, visits) in &point.moves[..point.num] {
                             let idx = map_move_to_index(&point.pos, Move::from(mov));
                             assert!(idx < NUM_MOVES, "{idx} >= {NUM_MOVES}");
                             total += visits;
+
+                            if dist_chunk[dist_offset + idx] == 0.0 {
+                                mask_chunk[mask_offset + distinct] = idx as i32;
+                                distinct += 1; 
+                            }
+
                             dist_chunk[dist_offset + idx] += f32::from(visits);
+                        }
+
+                        if distinct < MAX_MOVES {
+                            mask_chunk[mask_offset + distinct] = -1;
                         }
 
                         let total = f32::from(total);
 
-                        for &(mov, _) in &point.moves[..point.num] {
-                            let idx = map_move_to_index(&point.pos, Move::from(mov));
-                            dist_chunk[dist_offset + idx] /= total;
+                        for &idx in &mask_chunk[mask_offset..mask_offset + distinct] {
+                            dist_chunk[dist_offset + idx as usize] /= total;
                         }
                     }
                 });

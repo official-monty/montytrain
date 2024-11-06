@@ -2,6 +2,8 @@ use std::{fs::File, io::BufReader, sync::mpsc, time::{SystemTime, UNIX_EPOCH}};
 
 use montyformat::{chess::Position, MontyFormat};
 
+use crate::inputs::MAX_MOVES;
+
 #[derive(Clone, Copy)]
 pub struct DecompressedData {
     pub pos: Position,
@@ -108,7 +110,7 @@ fn parse_into_buffer(game: MontyFormat, buffer: &mut Vec<DecompressedData>) {
     for data in game.moves {
         if (data.score - 0.5).abs() > 0.49 {
         } else if let Some(dist) = data.visit_distribution.as_ref() {
-            if dist.len() <= 108 {
+            if dist.len() > 1 && dist.len() <= MAX_MOVES {
                 let mut policy_data = DecompressedData {
                     pos,
                     moves: [(0, 0); 108],

@@ -5,5 +5,5 @@ edition = "2021"
 authors.workspace = true
 
 [dependencies]
-bullet = { package = "bullet_lib", git = 'https://github.com/jw1912/bullet' }
+bullet = { package = "bullet_lib", git = 'https://github.com/jw1912/bullet', branch = "masked-softmax"}
 montyformat = { workspace = true }

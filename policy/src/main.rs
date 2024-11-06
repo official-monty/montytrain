@@ -55,6 +55,7 @@ fn network(size: usize) -> Graph {
     let mut builder = GraphBuilder::default();
 
     let inputs = builder.create_input("inputs", Shape::new(inputs::INPUT_SIZE, 1));
+    let mask = builder.create_input("mask", Shape::new(moves::NUM_MOVES, 1));
     let dist = builder.create_input("dist", Shape::new(moves::NUM_MOVES, 1));
 
     let l0w = builder.create_weights("l0w", Shape::new(size, inputs::INPUT_SIZE));
@@ -67,7 +68,7 @@ fn network(size: usize) -> Graph {
     let l1a = operations::activate(&mut builder, l1, Activation::SCReLU);
     let l2 = operations::affine(&mut builder, l1w, l1a, l1b);
 
-    operations::softmax_crossentropy_loss(&mut builder, l2, dist);
+    operations::softmax_crossentropy_loss_masked(&mut builder, l2, dist, mask);
 
     let ctx = ExecutionContext::default();
     builder.build(ctx)
