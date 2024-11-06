@@ -1,17 +1,17 @@
-use montyformat::chess::{Move, Piece, Position, Side};
+use montyformat::chess::{Move, Position, Side};
 
-pub const NUM_MOVES: usize = 384;//OFFSETS[64];
+pub const NUM_MOVES: usize = OFFSETS[64];
 
-pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
-    let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
-    let pc = pos.get_pc(1 << mov.src()) - Piece::PAWN;
-    let dest = usize::from(mov.to() ^ flip);
-
-    64 * pc + dest
-}
+//pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
+//    let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
+//    let pc = pos.get_pc(1 << mov.src()) - Piece::PAWN;
+//    let dest = usize::from(mov.to() ^ flip);
+//
+//    64 * pc + dest
+//}
 
 #[allow(unused)]
-pub fn _map_move_to_index(pos: &Position, mov: Move) -> usize {
+pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
     let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
     let from = usize::from(mov.src() ^ flip);
     let dest = usize::from(mov.to() ^ flip);

@@ -32,15 +32,15 @@ fn main() {
             end_superbatch: 60,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.3, step: 60 },
-        save_rate: 150,
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 25 },
+        save_rate: 10,
     };
 
     let settings = LocalSettings {
         threads: 4,
         test_set: None,
         output_directory: "checkpoints",
-        batch_queue_size: 64,
+        batch_queue_size: 32,
     };
 
     logger::clear_colours();

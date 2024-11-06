@@ -70,7 +70,9 @@ impl bullet::loader::DataLoader<DecompressedData> for DataLoader {
                             break 'dataloading;
                         }
 
-                        buffer_sender.send(shuffle_buffer).unwrap();
+                        if buffer_sender.send(shuffle_buffer).is_err() {
+                            break 'dataloading;
+                        }
 
                         shuffle_buffer = Vec::new();
                         shuffle_buffer.reserve_exact(buffer_size);
@@ -89,6 +91,8 @@ impl bullet::loader::DataLoader<DecompressedData> for DataLoader {
                 }
             }
         }
+
+        drop(buffer_receiver);
     }
 }
 
