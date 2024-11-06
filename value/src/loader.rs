@@ -32,7 +32,7 @@ impl DataLoader<ChessBoard> for BinpackLoader {
         shuffle_buffer.reserve_exact(self.buffer_size);
 
         let (buffer_sender, buffer_receiver) = mpsc::sync_channel::<Vec<(Position, f32, i16)>>(0);
-        let (buffer_msg_sender, buffer_msg_receiver) = mpsc::sync_channel::<bool>(0);
+        let (buffer_msg_sender, buffer_msg_receiver) = mpsc::sync_channel::<bool>(1);
 
         let file_path = self.file_path[0].clone();
         let buffer_size = self.buffer_size;
@@ -60,10 +60,8 @@ impl DataLoader<ChessBoard> for BinpackLoader {
 
                         shuffle(&mut shuffle_buffer);
 
-                        if buffer_msg_receiver.try_recv().unwrap_or(false) {
+                        if buffer_msg_receiver.try_recv().unwrap_or(false) || buffer_sender.send(shuffle_buffer).is_err() {
                             break 'dataloading;
-                        } else {
-                            buffer_sender.send(shuffle_buffer).unwrap();
                         }
 
                         shuffle_buffer = Vec::new();
@@ -74,7 +72,7 @@ impl DataLoader<ChessBoard> for BinpackLoader {
         });
 
         let (batch_sender, batch_reciever) = mpsc::sync_channel::<Vec<ChessBoard>>(16);
-        let (batch_msg_sender, batch_msg_receiver) = mpsc::sync_channel::<bool>(0);
+        let (batch_msg_sender, batch_msg_receiver) = mpsc::sync_channel::<bool>(1);
 
         std::thread::spawn(move || {
             let mut prealloc = Vec::new();
@@ -94,6 +92,7 @@ impl DataLoader<ChessBoard> for BinpackLoader {
                         }
 
                         if batch_sender.send(prealloc).is_err() {
+                            buffer_msg_sender.send(true).unwrap();
                             break 'dataloading;
                         }
 

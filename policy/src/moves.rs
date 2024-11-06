@@ -1,25 +1,26 @@
-use montyformat::chess::{Move, Position, Side};
+use montyformat::chess::{Move, Piece, Position, Side};
 
 pub const MAX_MOVES: usize = 96;
-pub const NUM_MOVES: usize = OFFSETS[64];
-
-//pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
-//    let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
-//    let pc = pos.get_pc(1 << mov.src()) - Piece::PAWN;
-//    let dest = usize::from(mov.to() ^ flip);
-//
-//    64 * pc + dest
-//}
+pub const NUM_MOVES: usize = OFFSETS[64] + PROMOS;
+pub const PROMOS: usize = 4 * 22;
 
 #[allow(unused)]
 pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
-    let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
-    let from = usize::from(mov.src() ^ flip);
-    let dest = usize::from(mov.to() ^ flip);
+    if mov.is_promo() {
+        let ffile = mov.src() % 8;
+        let tfile = mov.to() % 8;
+        let promo_id = 2 * ffile + tfile;
 
-    let below = ALL_DESTINATIONS[from] & ((1 << dest) - 1);
-
-    OFFSETS[from] + below.count_ones() as usize
+        OFFSETS[64] + 22 * (mov.promo_pc() - Piece::KNIGHT) + usize::from(promo_id)
+    } else {
+        let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
+        let from = usize::from(mov.src() ^ flip);
+        let dest = usize::from(mov.to() ^ flip);
+    
+        let below = ALL_DESTINATIONS[from] & ((1 << dest) - 1);
+    
+        OFFSETS[from] + below.count_ones() as usize
+    }
 }
 
 macro_rules! init {

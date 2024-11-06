@@ -40,7 +40,7 @@ impl bullet::loader::DataLoader<DecompressedData> for DataLoader {
         shuffle_buffer.reserve_exact(self.buffer_size);
 
         let (buffer_sender, buffer_receiver) = mpsc::sync_channel::<Vec<DecompressedData>>(0);
-        let (buffer_msg_sender, buffer_msg_receiver) = mpsc::sync_channel::<bool>(0);
+        let (buffer_msg_sender, buffer_msg_receiver) = mpsc::sync_channel::<bool>(1);
 
         let file_path = self.file_path[0].clone();
         let buffer_size = self.buffer_size;
