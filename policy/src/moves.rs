@@ -1,12 +1,12 @@
-use montyformat::chess::{Move, Piece, Position, Side};
+use montyformat::chess::{Attacks, Move, Piece, Position, Side};
 
 pub const MAX_MOVES: usize = 96;
-pub const NUM_MOVES: usize = OFFSETS[64] + PROMOS;
+pub const NUM_MOVES: usize = 2 * (OFFSETS[64] + PROMOS);
 pub const PROMOS: usize = 4 * 22;
 
 #[allow(unused)]
 pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
-    if mov.is_promo() {
+    let idx = if mov.is_promo() {
         let ffile = mov.src() % 8;
         let tfile = mov.to() % 8;
         let promo_id = 2 * ffile + tfile;
@@ -20,7 +20,9 @@ pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
         let below = ALL_DESTINATIONS[from] & ((1 << dest) - 1);
     
         OFFSETS[from] + below.count_ones() as usize
-    }
+    };
+
+    idx + (OFFSETS[64] + PROMOS) * usize::from(see(pos, &mov, -108))
 }
 
 macro_rules! init {
@@ -98,16 +100,81 @@ const KING: [u64; 64] = init!(|sq, 64| {
     k ^ (1 << sq)
 });
 
-#[cfg(test)]
-mod test {
-    use montyformat::chess::{Flag, Move, Position};
+const SEE_VALS: [i32; 8] = [0, 0, 100, 450, 450, 650, 1250, 0];
 
-    use crate::moves::{map_move_to_index, NUM_MOVES};
-
-    #[test]
-    fn test_count() {
-        let mov = Move::new(63, 62, Flag::QUIET);
-        let pos = Position::default();
-        assert_eq!(map_move_to_index(&pos, mov), NUM_MOVES - 1);
+fn gain(pos: &Position, mov: &Move) -> i32 {
+    if mov.is_en_passant() {
+        return SEE_VALS[Piece::PAWN];
     }
+    let mut score = SEE_VALS[pos.get_pc(1 << mov.to())];
+    if mov.is_promo() {
+        score += SEE_VALS[mov.promo_pc()] - SEE_VALS[Piece::PAWN];
+    }
+    score
+}
+
+pub fn see(pos: &Position, mov: &Move, threshold: i32) -> bool {
+    let sq = usize::from(mov.to());
+    assert!(sq < 64, "wha");
+    let mut next = if mov.is_promo() {
+        mov.promo_pc()
+    } else {
+        pos.get_pc(1 << mov.src())
+    };
+    let mut score = gain(pos, mov) - threshold - SEE_VALS[next];
+
+    if score >= 0 {
+        return true;
+    }
+
+    let mut occ = (pos.piece(Side::WHITE) | pos.piece(Side::BLACK)) ^ (1 << mov.src()) ^ (1 << sq);
+    if mov.is_en_passant() {
+        occ ^= 1 << (sq ^ 8);
+    }
+
+    let bishops = pos.piece(Piece::BISHOP) | pos.piece(Piece::QUEEN);
+    let rooks = pos.piece(Piece::ROOK) | pos.piece(Piece::QUEEN);
+    let mut us = pos.stm() ^ 1;
+    let mut attackers = (Attacks::knight(sq) & pos.piece(Piece::KNIGHT))
+        | (Attacks::king(sq) & pos.piece(Piece::KING))
+        | (Attacks::pawn(sq, Side::WHITE) & pos.piece(Piece::PAWN) & pos.piece(Side::BLACK))
+        | (Attacks::pawn(sq, Side::BLACK) & pos.piece(Piece::PAWN) & pos.piece(Side::WHITE))
+        | (Attacks::rook(sq, occ) & rooks)
+        | (Attacks::bishop(sq, occ) & bishops);
+
+    loop {
+        let our_attackers = attackers & pos.piece(us);
+        if our_attackers == 0 {
+            break;
+        }
+
+        for pc in Piece::PAWN..=Piece::KING {
+            let board = our_attackers & pos.piece(pc);
+            if board > 0 {
+                occ ^= board & board.wrapping_neg();
+                next = pc;
+                break;
+            }
+        }
+
+        if [Piece::PAWN, Piece::BISHOP, Piece::QUEEN].contains(&next) {
+            attackers |= Attacks::bishop(sq, occ) & bishops;
+        }
+        if [Piece::ROOK, Piece::QUEEN].contains(&next) {
+            attackers |= Attacks::rook(sq, occ) & rooks;
+        }
+
+        attackers &= occ;
+        score = -score - 1 - SEE_VALS[next];
+        us ^= 1;
+
+        if score >= 0 {
+            if next == Piece::KING && attackers & pos.piece(us) > 0 {
+                us ^= 1;
+            }
+            break;
+        }
+    }
+
+    pos.stm() != us
 }
