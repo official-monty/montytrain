@@ -1,4 +1,9 @@
-use std::{fs::File, io::BufReader, sync::mpsc, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    fs::File,
+    io::BufReader,
+    sync::mpsc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use montyformat::{chess::Position, MontyFormat};
 
@@ -21,7 +26,7 @@ impl DataLoader {
     pub fn new(path: &str, buffer_size_mb: usize) -> Self {
         Self {
             file_path: [path.to_string(); 1],
-            buffer_size: buffer_size_mb * 1024 * 1024 / 512,
+            buffer_size: buffer_size_mb * 1024 * 1024 / 512 / 2,
         }
     }
 }

@@ -1,10 +1,15 @@
 mod inputs;
 mod loader;
 mod moves;
-mod trainer;
 mod preparer;
+mod trainer;
 
-use bullet::{logger, lr, operations, optimiser::{AdamWOptimiser, AdamWParams, Optimiser}, wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, Shape, TrainingSchedule, TrainingSteps};
+use bullet::{
+    logger, lr, operations,
+    optimiser::{AdamWOptimiser, AdamWParams, Optimiser},
+    wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, Shape,
+    TrainingSchedule, TrainingSteps,
+};
 use trainer::Trainer;
 
 const ID: &str = "policy001";
@@ -16,8 +21,12 @@ fn main() {
 
     let mut graph = network(size);
 
-    graph.get_weights_mut("l0w").seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
-    graph.get_weights_mut("l1w").seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
+    graph
+        .get_weights_mut("l0w")
+        .seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
+    graph
+        .get_weights_mut("l1w")
+        .seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
 
     let mut trainer = Trainer {
         optimiser: AdamWOptimiser::new(graph, AdamWParams::default()),
@@ -33,7 +42,11 @@ fn main() {
             end_superbatch: 540,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
-        lr_scheduler: lr::ExponentialDecayLR { initial_lr: 0.001, final_lr: 0.000001, final_superbatch: 540 },
+        lr_scheduler: lr::ExponentialDecayLR {
+            initial_lr: 0.001,
+            final_lr: 0.000001,
+            final_superbatch: 540,
+        },
         save_rate: 10,
     };
 
@@ -49,11 +62,22 @@ fn main() {
     schedule.display();
     settings.display();
 
-    trainer.train_custom(&data_preparer, &Option::<preparer::DataPreparer>::None, &schedule, &settings, |sb, trainer, schedule, _| {
-        if schedule.should_save(sb) {
-            trainer.save_weights_portion(&format!("checkpoints/{ID}-{sb}.network"), &["l0w", "l0b", "l1w", "l1b"]).unwrap();
-        }
-    });
+    trainer.train_custom(
+        &data_preparer,
+        &Option::<preparer::DataPreparer>::None,
+        &schedule,
+        &settings,
+        |sb, trainer, schedule, _| {
+            if schedule.should_save(sb) {
+                trainer
+                    .save_weights_portion(
+                        &format!("checkpoints/{ID}-{sb}.network"),
+                        &["l0w", "l0b", "l1w", "l1b"],
+                    )
+                    .unwrap();
+            }
+        },
+    );
 }
 
 fn network(size: usize) -> Graph {

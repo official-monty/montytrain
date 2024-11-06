@@ -4,7 +4,7 @@ use montyformat::chess::Move;
 use crate::{
     inputs::{map_policy_inputs, INPUT_SIZE, MAX_ACTIVE},
     loader::{DataLoader, DecompressedData},
-    moves::{map_move_to_index, NUM_MOVES, MAX_MOVES},
+    moves::{map_move_to_index, MAX_MOVES, NUM_MOVES},
 };
 
 #[derive(Clone)]
@@ -80,7 +80,7 @@ impl PreparedData {
             dist: DenseInput {
                 shape: Shape::new(MAX_MOVES, batch_size),
                 value: vec![0.0; MAX_MOVES * batch_size],
-            },  
+            },
         };
 
         std::thread::scope(|s| {
@@ -107,7 +107,10 @@ impl PreparedData {
                             input_chunk[input_offset + j] = -1;
                         }
 
-                        assert!(j <= MAX_ACTIVE, "More inputs provided than the specified maximum!");
+                        assert!(
+                            j <= MAX_ACTIVE,
+                            "More inputs provided than the specified maximum!"
+                        );
 
                         let mut total = 0;
                         let mut distinct = 0;

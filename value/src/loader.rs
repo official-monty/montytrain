@@ -1,4 +1,9 @@
-use std::{fs::File, io::BufReader, sync::mpsc, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    fs::File,
+    io::BufReader,
+    sync::mpsc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use bullet::{format::ChessBoard, loader::DataLoader};
 use montyformat::{chess::Position, MontyValueFormat};
@@ -60,7 +65,9 @@ impl DataLoader<ChessBoard> for BinpackLoader {
 
                         shuffle(&mut shuffle_buffer);
 
-                        if buffer_msg_receiver.try_recv().unwrap_or(false) || buffer_sender.send(shuffle_buffer).is_err() {
+                        if buffer_msg_receiver.try_recv().unwrap_or(false)
+                            || buffer_sender.send(shuffle_buffer).is_err()
+                        {
                             break 'dataloading;
                         }
 
