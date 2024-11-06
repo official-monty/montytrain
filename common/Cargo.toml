@@ -1,9 +1,0 @@
-[package]
-name = "common"
-version = "0.1.0"
-edition = "2021"
-authors.workspace = true
-
-[dependencies]
-montyformat = { workspace = true }
-tch = { workspace = true }

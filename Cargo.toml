@@ -5,7 +5,7 @@ authors = ["Jamie Whiting"]
 
 [workspace]
 resolver = "2"
-members = ["policy", "common", "value"]
+members = ["policy", "value"]
 
 [profile.release]
 lto = true
@@ -14,5 +14,5 @@ strip = true
 panic = "abort"
 
 [workspace.dependencies]
+bullet = { package = "bullet_lib", git = 'https://github.com/jw1912/bullet', branch = "masked-softmax"}
 montyformat = { git = 'https://github.com/official-monty/montyformat.git', tag = "v0.3.0" }
-tch = "0.17.0"
