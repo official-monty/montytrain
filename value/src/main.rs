@@ -5,7 +5,7 @@ mod loader;
 use arch::make_trainer;
 use bullet::{lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
 
-const HIDDEN_SIZE: usize = 2048;
+const HIDDEN_SIZE: usize = 4096;
 
 fn main() {
     let mut trainer = make_trainer(HIDDEN_SIZE);
