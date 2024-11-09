@@ -17,8 +17,8 @@ const ID: &str = "policy001";
 fn main() {
     let data_preparer = preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved-policy.binpack", 96000);
 
-    let l1 = 4096;
-    let l2 = 1024;
+    let l1 = 1024;
+    let l2 = 512;
 
     let mut graph = network(l1, l2);
 
@@ -94,15 +94,16 @@ fn network(l1: usize, l2: usize) -> Graph {
     let l0w = builder.create_weights("l0w", Shape::new(l1, inputs::INPUT_SIZE));
     let l0b = builder.create_weights("l0b", Shape::new(l1, 1));
 
-    let l1w = builder.create_weights("l1w", Shape::new(l2, l1));
+    let l1w = builder.create_weights("l1w", Shape::new(l2, l1 / 2));
     let l1b = builder.create_weights("l1b", Shape::new(l2, 1));
 
     let l2w = builder.create_weights("l2w", Shape::new(moves::NUM_MOVES, l2));
     let l2b = builder.create_weights("l2b", Shape::new(moves::NUM_MOVES, 1));
 
     let l1 = operations::affine(&mut builder, l0w, inputs, l0b);
-    let l1a = operations::activate(&mut builder, l1, Activation::SCReLU);
-    let l2 = operations::affine(&mut builder, l1w, l1a, l1b);
+    let l1a = operations::activate(&mut builder, l1, Activation::CReLU);
+    let l1r = operations::pairwise_mul(&mut builder, l1a);
+    let l2 = operations::affine(&mut builder, l1w, l1r, l1b);
     let l2a = operations::activate(&mut builder, l2, Activation::SCReLU);
     let l3 = operations::affine(&mut builder, l2w, l2a, l2b);
 
