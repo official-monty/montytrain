@@ -17,16 +17,20 @@ const ID: &str = "policy001";
 fn main() {
     let data_preparer = preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved-policy.binpack", 96000);
 
-    let size = 4096;
+    let l1 = 4096;
+    let l2 = 1024;
 
-    let mut graph = network(size);
+    let mut graph = network(l1, l2);
 
     graph
         .get_weights_mut("l0w")
         .seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
     graph
         .get_weights_mut("l1w")
-        .seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
+        .seed_random(0.0, 1.0 / (l1 as f32).sqrt(), true);
+    graph
+        .get_weights_mut("l2w")
+        .seed_random(0.0, 1.0 / (l2 as f32).sqrt(), true);
 
     let mut trainer = Trainer {
         optimiser: AdamWOptimiser::new(graph, AdamWParams::default()),
@@ -72,7 +76,7 @@ fn main() {
                 trainer
                     .save_weights_portion(
                         &format!("checkpoints/{ID}-{sb}.network"),
-                        &["l0w", "l0b", "l1w", "l1b"],
+                        &["l0w", "l0b", "l1w", "l1b", "l2w", "l2b"],
                     )
                     .unwrap();
             }
@@ -80,24 +84,29 @@ fn main() {
     );
 }
 
-fn network(size: usize) -> Graph {
+fn network(l1: usize, l2: usize) -> Graph {
     let mut builder = GraphBuilder::default();
 
     let inputs = builder.create_input("inputs", Shape::new(inputs::INPUT_SIZE, 1));
     let mask = builder.create_input("mask", Shape::new(moves::NUM_MOVES, 1));
     let dist = builder.create_input("dist", Shape::new(moves::MAX_MOVES, 1));
 
-    let l0w = builder.create_weights("l0w", Shape::new(size, inputs::INPUT_SIZE));
-    let l0b = builder.create_weights("l0b", Shape::new(size, 1));
+    let l0w = builder.create_weights("l0w", Shape::new(l1, inputs::INPUT_SIZE));
+    let l0b = builder.create_weights("l0b", Shape::new(l1, 1));
 
-    let l1w = builder.create_weights("l1w", Shape::new(moves::NUM_MOVES, size));
-    let l1b = builder.create_weights("l1b", Shape::new(moves::NUM_MOVES, 1));
+    let l1w = builder.create_weights("l1w", Shape::new(l2, l1));
+    let l1b = builder.create_weights("l1b", Shape::new(l2, 1));
+
+    let l2w = builder.create_weights("l2w", Shape::new(moves::NUM_MOVES, l2));
+    let l2b = builder.create_weights("l2b", Shape::new(moves::NUM_MOVES, 1));
 
     let l1 = operations::affine(&mut builder, l0w, inputs, l0b);
     let l1a = operations::activate(&mut builder, l1, Activation::SCReLU);
     let l2 = operations::affine(&mut builder, l1w, l1a, l1b);
+    let l2a = operations::activate(&mut builder, l2, Activation::SCReLU);
+    let l3 = operations::affine(&mut builder, l2w, l2a, l2b);
 
-    operations::sparse_softmax_crossentropy_loss_masked(&mut builder, mask, l2, dist);
+    operations::sparse_softmax_crossentropy_loss_masked(&mut builder, mask, l3, dist);
 
     let ctx = ExecutionContext::default();
     builder.build(ctx)
