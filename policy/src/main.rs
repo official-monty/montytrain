@@ -72,7 +72,7 @@ fn main() {
                 trainer
                     .save_weights_portion(
                         &format!("checkpoints/{ID}-{sb}.network"),
-                        &["l0w", "l0b", "l1w", "l1b"],
+                        &["l0w", "l0b", "l1w", "l1b", "pstw", "pstb"],
                     )
                     .unwrap();
             }
@@ -93,11 +93,18 @@ fn network(size: usize) -> Graph {
     let l1w = builder.create_weights("l1w", Shape::new(moves::NUM_MOVES, size));
     let l1b = builder.create_weights("l1b", Shape::new(moves::NUM_MOVES, 1));
 
+    let pstw = builder.create_weights("pstw", Shape::new(moves::NUM_MOVES, inputs::INPUT_SIZE));
+    let pstb = builder.create_weights("pstb", Shape::new(moves::NUM_MOVES, 1));
+
     let l1 = operations::affine(&mut builder, l0w, inputs, l0b);
     let l1a = operations::activate(&mut builder, l1, Activation::SCReLU);
     let l2 = operations::affine(&mut builder, l1w, l1a, l1b);
 
-    operations::sparse_softmax_crossentropy_loss_masked(&mut builder, mask, l2, dist);
+    let pst = operations::affine(&mut builder, pstw, inputs, pstb);
+
+    let pred = operations::add(&mut builder, l2, pst);
+
+    operations::sparse_softmax_crossentropy_loss_masked(&mut builder, mask, pred, dist);
 
     let ctx = ExecutionContext::default();
     builder.build(ctx)
