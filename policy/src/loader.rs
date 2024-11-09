@@ -117,8 +117,7 @@ fn parse_into_buffer(game: MontyFormat, buffer: &mut Vec<DecompressedData>) {
     let castling = game.castling;
 
     for data in game.moves {
-        if (data.score - 0.5).abs() > 0.49 {
-        } else if let Some(dist) = data.visit_distribution.as_ref() {
+        if let Some(dist) = data.visit_distribution.as_ref() {
             if dist.len() > 1 && dist.len() <= MAX_MOVES {
                 let mut policy_data = DecompressedData {
                     pos,

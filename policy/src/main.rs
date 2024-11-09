@@ -15,9 +15,9 @@ use trainer::Trainer;
 const ID: &str = "policy001";
 
 fn main() {
-    let data_preparer = preparer::DataPreparer::new("../binpacks/policygen9.binpack", 4096);
+    let data_preparer = preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved-policy.binpack", 96000);
 
-    let size = 512;
+    let size = 4096;
 
     let mut graph = network(size);
 
@@ -39,15 +39,15 @@ fn main() {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 540,
+            end_superbatch: 300,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
         lr_scheduler: lr::ExponentialDecayLR {
             initial_lr: 0.001,
-            final_lr: 0.000001,
-            final_superbatch: 540,
+            final_lr: 0.00001,
+            final_superbatch: 300,
         },
-        save_rate: 10,
+        save_rate: 40,
     };
 
     let settings = LocalSettings {
