@@ -17,15 +17,15 @@ fn main() {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 3000,
+            end_superbatch: 3600,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
         lr_scheduler: lr::ExponentialDecayLR {
             initial_lr: 0.001,
-            final_lr: 0.0000001,
-            final_superbatch: 3000,
+            final_lr: 0.0000005,
+            final_superbatch: 3600,
         },
-        save_rate: 20,
+        save_rate: 40,
     };
 
     let optimiser_params = optimiser::AdamWParams {
@@ -45,7 +45,7 @@ fn main() {
         batch_queue_size: 256,
     };
 
-    let data_loader = loader::BinpackLoader::new("../binpacks/bestmove-q.binpack", 48000);
+    let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000);
 
     trainer.run(&schedule, &settings, &data_loader);
 
