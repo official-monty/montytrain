@@ -82,7 +82,7 @@ fn main() {
                 trainer
                     .save_weights_portion(
                         &format!("checkpoints/{ID}-{sb}.network"),
-                        &["l0w", "l0b", "l1w", "l1b"],
+                        &["l0w", "l0b", "l1w", "l1b", "v1w", "v1b", "v2w", "v2b", "v3w", "v3b", "pstw", "pstb"],
                     )
                     .unwrap();
             }
