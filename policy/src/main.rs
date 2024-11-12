@@ -28,6 +28,16 @@ fn main() {
         .get_weights_mut("l1w")
         .seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
 
+    graph
+        .get_weights_mut("v1w")
+        .seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
+    graph
+        .get_weights_mut("v2w")
+        .seed_random(0.0, 1.0 / 16f32.sqrt(), true);
+    graph
+        .get_weights_mut("v3w")
+        .seed_random(0.0, 1.0 / 128f32.sqrt(), true);
+
     let mut trainer = Trainer {
         optimiser: AdamWOptimiser::new(graph, AdamWParams::default()),
     };
