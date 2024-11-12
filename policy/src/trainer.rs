@@ -49,6 +49,11 @@ impl NetworkTrainer for Trainer {
             .get_input_mut("dist")
             .load_dense_from_slice(dist.shape, &dist.value);
 
+        let wdl = &prepared.wdl;
+        graph
+            .get_input_mut("wdl")
+            .load_dense_from_slice(wdl.shape, &wdl.value);
+
         batch_size
     }
 }

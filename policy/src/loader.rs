@@ -12,8 +12,9 @@ use crate::moves::MAX_MOVES;
 #[derive(Clone, Copy)]
 pub struct DecompressedData {
     pub pos: Position,
-    pub moves: [(u16, u16); 108],
+    pub moves: [(u16, u16); 107],
     pub num: usize,
+    pub result: f32,
 }
 
 #[derive(Clone)]
@@ -121,8 +122,9 @@ fn parse_into_buffer(game: MontyFormat, buffer: &mut Vec<DecompressedData>) {
             if dist.len() > 1 && dist.len() <= MAX_MOVES {
                 let mut policy_data = DecompressedData {
                     pos,
-                    moves: [(0, 0); 108],
+                    moves: [(0, 0); 107],
                     num: dist.len(),
+                    result: game.result,
                 };
 
                 for (i, (mov, visits)) in dist.iter().enumerate() {

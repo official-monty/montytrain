@@ -58,6 +58,7 @@ pub struct PreparedData {
     pub inputs: SparseInput,
     pub mask: SparseInput,
     pub dist: DenseInput,
+    pub wdl: DenseInput,
 }
 
 impl PreparedData {
@@ -81,14 +82,19 @@ impl PreparedData {
                 shape: Shape::new(MAX_MOVES, batch_size),
                 value: vec![0.0; MAX_MOVES * batch_size],
             },
+            wdl: DenseInput {
+                shape: Shape::new(3, batch_size),
+                value: vec![0.0; 3 * batch_size],
+            },
         };
 
         std::thread::scope(|s| {
-            for (((data_chunk, input_chunk), mask_chunk), dist_chunk) in data
+            for ((((data_chunk, input_chunk), mask_chunk), dist_chunk), wdl_chunk) in data
                 .chunks(chunk_size)
                 .zip(prep.inputs.value.chunks_mut(MAX_ACTIVE * chunk_size))
                 .zip(prep.mask.value.chunks_mut(MAX_MOVES * chunk_size))
                 .zip(prep.dist.value.chunks_mut(MAX_MOVES * chunk_size))
+                .zip(prep.wdl.value.chunks_mut(3 * chunk_size))
             {
                 s.spawn(move || {
                     for (i, point) in data_chunk.iter().enumerate() {
@@ -106,6 +112,10 @@ impl PreparedData {
                         if j < MAX_ACTIVE {
                             input_chunk[input_offset + j] = -1;
                         }
+
+                        let result = if point.pos.stm() > 0 { 1.0 - point.result } else { point.result };
+                        let result_idx = (2.0 * result) as usize;
+                        wdl_chunk[3 * i + result_idx] = 1.0;
 
                         assert!(
                             j <= MAX_ACTIVE,
