@@ -28,8 +28,16 @@ fn main() {
         .get_weights_mut("l1w")
         .seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
 
+    let optimiser_params = AdamWParams {
+        decay: 0.01,
+        beta1: 0.9,
+        beta2: 0.999,
+        min_weight: -0.99,
+        max_weight: 0.99,
+    };
+
     let mut trainer = Trainer {
-        optimiser: AdamWOptimiser::new(graph, AdamWParams::default()),
+        optimiser: AdamWOptimiser::new(graph, optimiser_params),
     };
 
     let schedule = TrainingSchedule {
