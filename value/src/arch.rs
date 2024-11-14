@@ -57,7 +57,7 @@ fn build_network(inputs: usize, l1: usize) -> (Graph, Node) {
     let pstb = builder.create_weights("pstb", Shape::new(3, 1));
     let l0w = builder.create_weights("l0w", Shape::new(l1, inputs));
     let l0b = builder.create_weights("l0b", Shape::new(l1, 1));
-    let l1w = builder.create_weights("l1w", Shape::new(16, l1));
+    let l1w = builder.create_weights("l1w", Shape::new(16, l1 / 2));
     let l1b = builder.create_weights("l1b", Shape::new(16, 1));
     let l2w = builder.create_weights("l2w", Shape::new(128, 16));
     let l2b = builder.create_weights("l2b", Shape::new(128, 1));
@@ -66,7 +66,8 @@ fn build_network(inputs: usize, l1: usize) -> (Graph, Node) {
 
     // inference
     let l1 = operations::affine(&mut builder, l0w, stm, l0b);
-    let l1 = operations::activate(&mut builder, l1, Activation::SCReLU);
+    let l1 = operations::activate(&mut builder, l1, Activation::CReLU);
+    let l1 = operations::pairwise_mul(&mut builder, l1);
     let l2 = operations::affine(&mut builder, l1w, l1, l1b);
     let l2 = operations::activate(&mut builder, l2, Activation::SCReLU);
     let l3 = operations::affine(&mut builder, l2w, l2, l2b);
