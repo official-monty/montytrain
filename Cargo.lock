@@ -77,8 +77,8 @@ checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "montyformat"
-version = "0.3.0"
-source = "git+https://github.com/official-monty/montyformat.git?tag=v0.3.0#0789de7fb025d799b4cb57b840714fd4d3c6fcfb"
+version = "0.5.0"
+source = "git+https://github.com/official-monty/montyformat.git?tag=v0.5.0#2f88b7b24b16a77c4bc5796b75ff1b152ab1ce5f"
 
 [[package]]
 name = "num-traits"
