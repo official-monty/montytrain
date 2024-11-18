@@ -18,8 +18,10 @@ fn main() {
     let data_preparer = preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000);
 
     let size = 6144;
+    let l2_inputs = 512;
+    let l2_size = 512;
 
-    let mut graph = network(size);
+    let mut graph = network(size, l2_inputs, l2_size);
 
     graph
         .get_weights_mut("l0w")
@@ -88,7 +90,7 @@ fn main() {
     );
 }
 
-fn network(size: usize) -> Graph {
+fn network(size: usize, l2_input: usize, l2_size: usize) -> Graph {
     let mut builder = GraphBuilder::default();
 
     let inputs = builder.create_input("inputs", Shape::new(inputs::INPUT_SIZE, 1));
@@ -101,12 +103,26 @@ fn network(size: usize) -> Graph {
     let l1w = builder.create_weights("l1w", Shape::new(moves::NUM_MOVES, size / 2));
     let l1b = builder.create_weights("l1b", Shape::new(moves::NUM_MOVES, 1));
 
+    let l2w = builder.create_weights("l2w", Shape::new(l2_size, l2_input));
+    let l2b = builder.create_weights("l2b", Shape::new(l2_size, 1));
+
+    let l3w = builder.create_weights("l3w", Shape::new(moves::NUM_MOVES, l2_size));
+    let l3b = builder.create_weights("l3b", Shape::new(moves::NUM_MOVES, 1));
+
     let l1 = operations::affine(&mut builder, l0w, inputs, l0b);
     let l1a = operations::activate(&mut builder, l1, Activation::CReLU);
     let l1r = operations::pairwise_mul(&mut builder, l1a);
-    let l2 = operations::affine(&mut builder, l1w, l1r, l1b);
 
-    operations::sparse_softmax_crossentropy_loss_masked(&mut builder, mask, l2, dist);
+    let out1 = operations::affine(&mut builder, l1w, l1r, l1b);
+
+    let l2i = operations::slice_rows(&mut builder, l1r, 0, l2_input);
+    let l2 = operations::affine(&mut builder, l2w, l2i, l2b);
+    let l2a = operations::activate(&mut builder, l2, Activation::SCReLU);
+    let out2 = operations::affine(&mut builder, l3w, l2a, l3b);
+
+    let out = operations::add(&mut builder, out1, out2);
+
+    operations::sparse_softmax_crossentropy_loss_masked(&mut builder, mask, out, dist);
 
     let ctx = ExecutionContext::default();
     builder.build(ctx)
