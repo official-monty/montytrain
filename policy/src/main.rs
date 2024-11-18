@@ -29,6 +29,12 @@ fn main() {
     graph
         .get_weights_mut("l1w")
         .seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
+    graph
+        .get_weights_mut("l2w")
+        .seed_random(0.0, 1.0 / (l2_inputs as f32).sqrt(), true);
+    graph
+        .get_weights_mut("l3w")
+        .seed_random(0.0, 1.0 / (l2_size as f32).sqrt(), true);
 
     let optimiser_params = AdamWParams {
         decay: 0.01,
@@ -82,7 +88,7 @@ fn main() {
                 trainer
                     .save_weights_portion(
                         &format!("checkpoints/{ID}-{sb}.network"),
-                        &["l0w", "l0b", "l1w", "l1b"],
+                        &["l0w", "l0b", "l1w", "l1b", "l2w", "l2b", "l3w", "l3b"],
                     )
                     .unwrap();
             }
