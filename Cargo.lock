@@ -11,7 +11,7 @@ checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 [[package]]
 name = "bullet_lib"
 version = "1.0.0"
-source = "git+https://github.com/jw1912/bullet?branch=cudnn#5494189e35e23e7ca3f8227a8aa397f771ffb1b3"
+source = "git+https://github.com/jw1912/bullet?branch=cudnn#56e9b7de29b333e3e83953dc512362ed27add342"
 dependencies = [
  "bulletformat",
  "cc",
