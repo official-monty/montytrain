@@ -5,6 +5,7 @@ pub const MAX_ACTIVE: usize = 32;
 
 pub fn map_policy_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
     let flip = pos.stm() == Side::BLACK;
+    let hm = if pos.king_index() % 8 > 3 { 7 } else { 0 };
 
     let mut threats = pos.threats_by(pos.stm() ^ 1);
     let mut defences = pos.threats_by(pos.stm());
@@ -27,7 +28,7 @@ pub fn map_policy_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
 
         while our_bb > 0 {
             let sq = our_bb.trailing_zeros();
-            let mut feat = pc + sq as usize;
+            let mut feat = pc + (sq ^ hm) as usize;
 
             let bit = 1 << sq;
             if threats & bit > 0 {
@@ -45,7 +46,7 @@ pub fn map_policy_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
 
         while opp_bb > 0 {
             let sq = opp_bb.trailing_zeros();
-            let mut feat = 384 + pc + sq as usize;
+            let mut feat = 384 + pc + (sq ^ hm) as usize;
 
             let bit = 1 << sq;
             if threats & bit > 0 {

@@ -6,7 +6,7 @@ use std::{
 use montyformat::{MontyFormat, FastDeserialise};
 
 fn main() -> std::io::Result<()> {
-    let folder_path = "/home/neural/policy_data/64"; // Specify the folder to scan
+    let folder_path = "/home/privateclient/monty_value_training/monty-policy-data"; // Specify the folder to scan
     let output = "interleaved.binpack";
 
     // Scan the folder and collect file paths with the specified extension
