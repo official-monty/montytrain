@@ -6,7 +6,7 @@ use arch::make_trainer;
 use bullet::{lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
 
 fn main() {
-    let mut trainer = make_trainer(4, 4, 2);
+    let mut trainer = make_trainer(64, 256);
 
     let schedule = TrainingSchedule {
         net_id: "cnn".to_string(),
