@@ -5,26 +5,20 @@ mod loader;
 use arch::make_trainer;
 use bullet::{lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
 
-const HIDDEN_SIZE: usize = 6144;
-
 fn main() {
-    let mut trainer = make_trainer(HIDDEN_SIZE);
+    let mut trainer = make_trainer();
 
     let schedule = TrainingSchedule {
-        net_id: "4096EXP".to_string(),
+        net_id: "cnn".to_string(),
         eval_scale: 400.0,
         steps: TrainingSteps {
             batch_size: 16_384,
-            batches_per_superbatch: 6104,
+            batches_per_superbatch: 256,
             start_superbatch: 1,
-            end_superbatch: 2400,
+            end_superbatch: 40,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
-        lr_scheduler: lr::ExponentialDecayLR {
-            initial_lr: 0.001,
-            final_lr: 0.0000005,
-            final_superbatch: 2400,
-        },
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 8 },
         save_rate: 40,
     };
 
@@ -42,10 +36,10 @@ fn main() {
         threads: 8,
         test_set: None,
         output_directory: "checkpoints",
-        batch_queue_size: 256,
+        batch_queue_size: 32,
     };
 
-    let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000);
+    let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096);
 
     trainer.run(&schedule, &settings, &data_loader);
 
