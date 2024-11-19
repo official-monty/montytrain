@@ -1,35 +1,29 @@
 use bullet::{
-    operations, optimiser::{AdamWOptimiser, AdamWParams}, outputs, Activation, ConvolutionDescription, ExecutionContext, Graph, GraphBuilder, Node, QuantTarget, Shape, Trainer
+    inputs::InputType, operations, optimiser::{AdamWOptimiser, AdamWParams}, outputs, Activation, ConvolutionDescription, ExecutionContext, Graph, GraphBuilder, Node, QuantTarget, Shape, Trainer
 };
 
 use crate::input::ThreatInputs;
 
-pub fn make_trainer(blocks: usize, filters: usize, subsequent: &[usize]) -> Trainer<AdamWOptimiser, ThreatInputs, outputs::Single> {
-    let (mut graph, output_node) = build_network(blocks, filters, subsequent);
+pub fn make_trainer(input_channels: usize, output_channels: usize, subsequent: &[usize]) -> Trainer<AdamWOptimiser, ThreatInputs, outputs::Single> {
+    let input_size = ThreatInputs.size();
+
+    let (mut graph, output_node) = build_network(input_size, input_channels, output_channels, subsequent);
 
     let mut save = Vec::new();
 
-    let stdev = 1.0 / 3072f32.sqrt();
-    graph.get_weights_mut("iw").seed_random(0.0, stdev, true);
-    graph.get_weights_mut("ib").seed_random(0.0, stdev, true);
-    save.push(("iw".to_string(), QuantTarget::Float));
-    save.push(("ib".to_string(), QuantTarget::Float));
+    let stdev = 1.0 / (input_size as f32).sqrt();
+    graph.get_weights_mut("i0w").seed_random(0.0, stdev, true);
+    graph.get_weights_mut("i0b").seed_random(0.0, stdev, true);
+    save.push(("i0w".to_string(), QuantTarget::Float));
+    save.push(("i0b".to_string(), QuantTarget::Float));
 
-    let stdev = 1.0 / ((64 * filters) as f32).sqrt();
+    let stdev = 1.0 / ((64 * input_channels) as f32).sqrt();
+    graph.get_weights_mut("i1w").seed_random(0.0, stdev, true);
+    graph.get_weights_mut("i1b").seed_random(0.0, stdev, true);
+    save.push(("i1w".to_string(), QuantTarget::Float));
+    save.push(("i1b".to_string(), QuantTarget::Float));
 
-    for block in 0..blocks {
-        graph.get_weights_mut(&format!("r{block}c1w")).seed_random(0.0, stdev, true);
-        graph.get_weights_mut(&format!("r{block}c1b")).seed_random(0.0, stdev, true);
-        save.push((format!("r{block}c1w"), QuantTarget::Float));
-        save.push((format!("r{block}c1b"), QuantTarget::Float));
-
-        graph.get_weights_mut(&format!("r{block}c2w")).seed_random(0.0, stdev, true);
-        graph.get_weights_mut(&format!("r{block}c2b")).seed_random(0.0, stdev, true);
-        save.push((format!("r{block}c2w"), QuantTarget::Float));
-        save.push((format!("r{block}c2b"), QuantTarget::Float));
-    }
-
-    let mut inputs = 64 * filters;
+    let mut inputs = 16 * output_channels;
 
     for (i, &size) in subsequent.iter().enumerate() {
         let stdev = 1.0 / (inputs as f32).sqrt();
@@ -47,57 +41,48 @@ pub fn make_trainer(blocks: usize, filters: usize, subsequent: &[usize]) -> Trai
     save.push(("ow".to_string(), QuantTarget::Float));
     save.push(("ob".to_string(), QuantTarget::Float));
 
-    Trainer::new(graph, output_node, AdamWParams::default(), ThreatInputs, outputs::Single, save, true)
+    Trainer::new(graph, output_node, AdamWParams::default(), ThreatInputs, outputs::Single, save, false)
 }
 
-fn convolution(builder: &mut GraphBuilder, input: Node, channels: (usize, usize), id: &str) -> Node {
-    let w = builder.create_weights(&format!("{id}w"), Shape::new(9, channels.0 * channels.1));
-    let b = builder.create_weights(&format!("{id}b"), Shape::new(64 * channels.1, 1));
-
-    let conv_desc = ConvolutionDescription::new(
-        Shape::new(8, 8),
-        channels.0,
-        channels.1,
-        Shape::new(3, 3),
-        Shape::new(1, 1),
-        Shape::new(1, 1),
-    );
-
-    let out = operations::convolution(builder, w, input, conv_desc);
-
-    operations::add(builder, out, b)
-}
-
-fn build_network(blocks: usize, filters: usize, subsequent: &[usize]) -> (Graph, Node) {
+fn build_network(input_size: usize, input_channels: usize, output_channels: usize, subsequent: &[usize]) -> (Graph, Node) {
     let mut builder = GraphBuilder::default();
 
     // inputs
-    let stm = builder.create_input("stm", Shape::new(3072, 1));
+    let stm = builder.create_input("stm", Shape::new(input_size, 1));
     let targets = builder.create_input("targets", Shape::new(3, 1));
 
-    let mut out = convolution(&mut builder, stm, (48, filters), "i");
+    let i0w = builder.create_weights("i0w", Shape::new(64 * input_channels, input_size));
+    let i0b = builder.create_weights("i0b", Shape::new(64 * input_channels, 1));
+    let i1w = builder.create_weights("i1w", Shape::new(25, input_channels * output_channels));
+    let i1b = builder.create_weights("i1b", Shape::new(16 * output_channels, 1));
 
-    for block in 0..blocks {
-        let conv1 = convolution(&mut builder, out, (filters, filters), &format!("r{block}c1"));
-        let conv2 = convolution(&mut builder, conv1, (filters, filters), &format!("r{block}c2"));
-        out = operations::add(&mut builder, out, conv2);
-        out = operations::activate(&mut builder, out, Activation::ReLU);
-    }
+    let conv_desc = ConvolutionDescription::new(
+        Shape::new(8, 8),
+        input_channels,
+        output_channels,
+        Shape::new(5, 5),
+        (0, 0),
+        Shape::new(1, 1),
+    );
 
-    let mut inputs = 64 * filters;
+    let mut out = operations::affine(&mut builder, i0w, stm, i0b);
+    out = operations::activate(&mut builder, out, Activation::SCReLU);
+    out = operations::convolution(&mut builder, i1w, out, conv_desc);
+    out = operations::add(&mut builder, out, i1b);
+    out = operations::activate(&mut builder, out, Activation::SCReLU);
 
+    let mut inputs = 16 * output_channels;
     for (i, &size) in subsequent.iter().enumerate() {
         let l1w = builder.create_weights(&format!("l{i}w"), Shape::new(size, inputs));
         let l1b = builder.create_weights(&format!("l{i}b"), Shape::new(size, 1));
         out = operations::affine(&mut builder, l1w, out, l1b);
         out = operations::activate(&mut builder, out, Activation::SCReLU);
-
         inputs = size;
     }
 
-    let l4w = builder.create_weights("ow", Shape::new(3, inputs));
-    let l4b = builder.create_weights("ob", Shape::new(3, 1));
-    out = operations::affine(&mut builder, l4w, out, l4b);
+    let ow = builder.create_weights("ow", Shape::new(3, inputs));
+    let ob = builder.create_weights("ob", Shape::new(3, 1));
+    out = operations::affine(&mut builder, ow, out, ob);
 
     operations::softmax_crossentropy_loss(&mut builder, out, targets);
 

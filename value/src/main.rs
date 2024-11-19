@@ -6,7 +6,7 @@ use arch::make_trainer;
 use bullet::{lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
 
 fn main() {
-    let mut trainer = make_trainer(4, 8, &[32]);
+    let mut trainer = make_trainer(32, 4, &[32, 32]);
 
     let schedule = TrainingSchedule {
         net_id: "cnn".to_string(),
@@ -40,7 +40,7 @@ fn main() {
         threads: 8,
         test_set: None,
         output_directory: "checkpoints",
-        batch_queue_size: 16,
+        batch_queue_size: 64,
     };
 
     let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000);
