@@ -6,19 +6,23 @@ use arch::make_trainer;
 use bullet::{lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
 
 fn main() {
-    let mut trainer = make_trainer(64, 256);
+    let mut trainer = make_trainer(64, 1024, 32, 32);
 
     let schedule = TrainingSchedule {
         net_id: "cnn".to_string(),
         eval_scale: 400.0,
         steps: TrainingSteps {
             batch_size: 16_384,
-            batches_per_superbatch: 256,
+            batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 40,
+            end_superbatch: 1000,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 25 },
+        lr_scheduler: lr::ExponentialDecayLR {
+            initial_lr: 0.001,
+            final_lr: 0.000001,
+            final_superbatch: 1000,
+        },
         save_rate: 40,
     };
 
@@ -36,10 +40,10 @@ fn main() {
         threads: 8,
         test_set: None,
         output_directory: "checkpoints",
-        batch_queue_size: 32,
+        batch_queue_size: 64,
     };
 
-    let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096);
+    let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000);
 
     trainer.run(&schedule, &settings, &data_loader);
 
@@ -52,6 +56,6 @@ fn main() {
     ] {
         let eval = trainer.eval(fen);
         println!("FEN: {fen}");
-        println!("EVAL: {}", 400.0 * eval);
+        println!("RAW LOSS VALUE: {}", 400.0 * eval);
     }
 }
