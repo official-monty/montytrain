@@ -18,7 +18,7 @@ fn main() {
             end_superbatch: 40,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 8 },
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 25 },
         save_rate: 40,
     };
 

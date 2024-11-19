@@ -54,6 +54,7 @@ fn build_network(channels: usize, l2: usize) -> (Graph, Node) {
     let l1w = builder.create_weights("l1w", Shape::new(l2, 64 * channels));
     let l1b = builder.create_weights("l1b", Shape::new(l2, 1));
     stm = operations::affine(&mut builder, l1w, stm, l1b);
+    stm = operations::activate(&mut builder, stm, Activation::SCReLU);
 
     let l2w = builder.create_weights("l2w", Shape::new(3, l2));
     let l2b = builder.create_weights("l2b", Shape::new(3, 1));
