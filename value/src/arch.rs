@@ -70,6 +70,7 @@ fn build_network(blocks: usize, filters: usize, output_channels: usize) -> (Grap
     let l0w = builder.create_weights("l0w", Shape::new(64 * filters, 768));
     let l0b = builder.create_weights("l0b", Shape::new(64 * filters, 1));
     let mut out = operations::affine(&mut builder, l0w, stm, l0b);
+    out = operations::activate(&mut builder, out, Activation::ReLU);
 
     // residual tower
     for i in 0..blocks {
