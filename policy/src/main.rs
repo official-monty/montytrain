@@ -17,7 +17,7 @@ const ID: &str = "policy001";
 fn main() {
     let data_preparer = preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000);
 
-    let size = 6144;
+    let size = 12288;
 
     let mut graph = network(size);
 
