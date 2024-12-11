@@ -9,7 +9,8 @@ const TOTAL_THREATS: usize = 2 * 12 * offsets::END;
 const TOTAL: usize = TOTAL_THREATS + 768;
 
 fn map_features<F: FnMut(usize)>(position: &Position, mut f: F) {
-    let pos = if position.stm() == Side::WHITE {
+    // flip to stm perspective
+    let mut pos = if position.stm() == Side::WHITE {
         *position
     } else {
         let mut bbs = [0; 8];
@@ -20,6 +21,16 @@ fn map_features<F: FnMut(usize)>(position: &Position, mut f: F) {
         bbs.swap(0, 1);
 
         Position::from_raw(bbs, false, 0, 0, position.halfm(), position.fullm())
+    };
+
+    // horiontal mirror
+    if pos.king_index() % 8 > 3 {
+        let mut bbs = [0; 8];
+        for (new, &old) in bbs.iter_mut().zip(pos.bbs().iter()) {
+            *new = flip_horizontal(old);
+        }
+
+        pos = Position::from_raw(bbs, false, 0, 0, pos.halfm(), pos.fullm());
     };
 
     let mut pieces = [13; 64];
@@ -63,6 +74,15 @@ fn map_bb<F: FnMut(usize)>(mut bb: u64, mut f: F) {
         f(sq);
         bb &= bb - 1;
     }
+}
+
+fn flip_horizontal(mut bb: u64) -> u64 {
+    const K1: u64 = 0x5555555555555555;
+    const K2: u64 = 0x3333333333333333;
+    const K4: u64 = 0x0f0f0f0f0f0f0f0f;
+    bb = ((bb >> 1) & K1) | ((bb & K1) << 1);
+    bb = ((bb >> 2) & K2) | ((bb & K2) << 2);
+    ((bb >> 4) & K4) | ((bb & K4) << 4)
 }
 
 #[derive(Clone, Copy)]
