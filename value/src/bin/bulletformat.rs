@@ -27,53 +27,50 @@ fn main() {
     let res = 0;
     let mut games = 0;
 
-    loop {
-        if let Ok(game) = MontyValueFormat::deserialise_from(&mut reader, Vec::new()) {
-            let mut pos = game.startpos;
-            let castling = &game.castling;
+    while let Ok(game) = MontyValueFormat::deserialise_from(&mut reader, Vec::new()) {
+        let mut pos = game.startpos;
+        let castling = &game.castling;
 
-            for result in game.moves {
-                let mut write = true;
+        for result in game.moves {
+            let mut write = true;
 
-                //if board.in_check() {
-                //    write = false;
-                //    checks += 1;
-                //}
+            //if board.in_check() {
+            //    write = false;
+            //    checks += 1;
+            //}
     
-                //if mov.is_capture() {
-                //    write = false;
-                //    caps += 1;
-                //}
+            //if mov.is_capture() {
+            //    write = false;
+            //    caps += 1;
+            //}
     
-                if result.score == i16::MIN || result.score.abs() > 2000 {
-                    write = false;
-                    scores += 1;
-                }
-    
-                //if write {
-                //    let wdl = 1.0 / (1.0 + (-f32::from(score) / 400.0).exp());
-                //    if (result - wdl).abs() > 0.6 {
-                //        write = false;
-                //        res += 1;
-                //    }
-                //}
-    
-                if write {
-                    buf.push(ChessBoard::from_raw(pos.bbs(), pos.stm(), result.score, game.result).unwrap());
-                } else {
-                    filtered += 1;
-                }
-    
-                positions += 1;
-                if positions % 4194304 == 0 {
-                    println!("Processed: {positions}");
-                }
-
-                pos.make(result.best_move, castling);
+            if result.score == i16::MIN || result.score.abs() > 2000 {
+                write = false;
+                scores += 1;
             }
-        } else {
-            break;
+    
+            //if write {
+            //    let wdl = 1.0 / (1.0 + (-f32::from(score) / 400.0).exp());
+            //    if (result - wdl).abs() > 0.6 {
+            //        write = false;
+            //        res += 1;
+            //    }
+            //}
+    
+            if write {
+                buf.push(ChessBoard::from_raw(pos.bbs(), pos.stm(), result.score, game.result).unwrap());
+            } else {
+                filtered += 1;
+            }
+    
+            positions += 1;
+            if positions % 4194304 == 0 {
+                println!("Processed: {positions}");
+            }
+
+            pos.make(result.best_move, castling);
         }
+
 
         games += 1;
 

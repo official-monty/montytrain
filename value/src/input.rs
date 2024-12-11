@@ -1,21 +1,84 @@
-use bullet::{
-    format::{chess::BoardIter, ChessBoard},
-    inputs,
-};
-use montyformat::chess::Position;
+use std::str::FromStr;
+
+use bullet::{format::BulletFormat, inputs};
+use montyformat::chess::{Castling, Position};
+
+fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
+
+}
+
+#[derive(Clone, Copy)]
+pub struct DataPoint {
+    pub pos: Position,
+    pub result: f32,
+    pub score: i16,
+}
+
+impl FromStr for DataPoint {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self {
+            pos: Position::parse_fen(s, &mut Castling::default()),
+            result: 0.5,
+            score: 0,
+        })
+    }
+}
+
+impl BulletFormat for DataPoint {
+    type FeatureType = usize;
+
+    const HEADER_SIZE: usize = 0;
+
+    fn set_result(&mut self, result: f32) {
+        self.result = result;
+    }
+
+    fn result(&self) -> f32 {
+        if self.pos.stm() == 0 { self.result } else { 1.0 - self.result }
+    }
+
+    fn result_idx(&self) -> usize {
+        (2.0 * self.result()) as usize
+    }
+
+    fn score(&self) -> i16 {
+        self.score
+    }
+}
+
+impl IntoIterator for DataPoint {
+    type IntoIter = ThreatInputsIter;
+    type Item = (usize, usize);
+
+    fn into_iter(self) -> Self::IntoIter {
+        let mut res = ThreatInputsIter {
+            features: [0; 128],
+            active: 0,
+            curr: 0,
+        };
+
+        map_features(&self.pos, |feat| {
+            res.features[res.active] = feat;
+            res.active += 1;
+        });
+
+        res
+    }
+}
 
 #[derive(Clone, Copy, Default)]
 pub struct ThreatInputs;
 
 pub struct ThreatInputsIter {
-    board_iter: BoardIter,
-    threats: u64,
-    defences: u64,
-    flip: u8,
+    features: [usize; 128],
+    active: usize,
+    curr: usize,
 }
 
 impl inputs::InputType for ThreatInputs {
-    type RequiredDataType = ChessBoard;
+    type RequiredDataType = DataPoint;
     type FeatureIter = ThreatInputsIter;
 
     fn buckets(&self) -> usize {
@@ -31,25 +94,7 @@ impl inputs::InputType for ThreatInputs {
     }
 
     fn feature_iter(&self, pos: &Self::RequiredDataType) -> Self::FeatureIter {
-        let mut bb = [0; 8];
-
-        for (pc, sq) in pos.into_iter() {
-            let bit = 1 << sq;
-            bb[usize::from(pc >> 3)] ^= bit;
-            bb[usize::from(2 + (pc & 7))] ^= bit;
-        }
-
-        let board = Position::from_raw(bb, false, 0, 0, 0, 1);
-
-        let threats = board.threats_by(1);
-        let defences = board.threats_by(0);
-
-        ThreatInputsIter {
-            board_iter: pos.into_iter(),
-            threats,
-            defences,
-            flip: if pos.our_ksq() % 8 > 3 { 7 } else { 0 },
-        }
+        pos.into_iter()
     }
 }
 
@@ -57,24 +102,14 @@ impl Iterator for ThreatInputsIter {
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.board_iter.next().map(|(piece, square)| {
-            let c = usize::from(piece & 8 > 0);
-            let pc = 64 * usize::from(piece & 7);
-            let sq = usize::from(square);
-            let mut stm = [0, 384][c] + pc + (sq ^ usize::from(self.flip));
-            let mut ntm = [384, 0][c] + pc + (sq ^ usize::from(self.flip) ^ 56);
+        let curr = self.curr;
 
-            if self.threats & (1 << sq) > 0 {
-                stm += 768;
-                ntm += 768 * 2;
-            }
-
-            if self.defences & (1 << sq) > 0 {
-                stm += 768 * 2;
-                ntm += 768;
-            }
-
-            (stm, ntm)
-        })
+        if curr == self.active {
+            None
+        } else {
+            self.curr += 1;
+            let feat = self.features[curr];
+            Some((feat, feat))
+        }
     }
 }

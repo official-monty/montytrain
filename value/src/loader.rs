@@ -5,8 +5,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use bullet::{format::ChessBoard, loader::DataLoader};
-use montyformat::{chess::Position, MontyValueFormat};
+use crate::input::DataPoint;
+
+use bullet::loader::DataLoader;
+use montyformat::MontyValueFormat;
 
 #[derive(Clone)]
 pub struct BinpackLoader {
@@ -23,7 +25,7 @@ impl BinpackLoader {
     }
 }
 
-impl DataLoader<ChessBoard> for BinpackLoader {
+impl DataLoader<DataPoint> for BinpackLoader {
     fn data_file_paths(&self) -> &[String] {
         &self.file_path
     }
@@ -32,11 +34,11 @@ impl DataLoader<ChessBoard> for BinpackLoader {
         None
     }
 
-    fn map_batches<F: FnMut(&[ChessBoard]) -> bool>(&self, batch_size: usize, mut f: F) {
+    fn map_batches<F: FnMut(&[DataPoint]) -> bool>(&self, batch_size: usize, mut f: F) {
         let mut shuffle_buffer = Vec::new();
         shuffle_buffer.reserve_exact(self.buffer_size);
 
-        let (buffer_sender, buffer_receiver) = mpsc::sync_channel::<Vec<(Position, f32, i16)>>(0);
+        let (buffer_sender, buffer_receiver) = mpsc::sync_channel::<Vec<DataPoint>>(0);
         let (buffer_msg_sender, buffer_msg_receiver) = mpsc::sync_channel::<bool>(1);
 
         let file_path = self.file_path[0].clone();
@@ -78,54 +80,22 @@ impl DataLoader<ChessBoard> for BinpackLoader {
             }
         });
 
-        let (batch_sender, batch_reciever) = mpsc::sync_channel::<Vec<ChessBoard>>(16);
-        let (batch_msg_sender, batch_msg_receiver) = mpsc::sync_channel::<bool>(1);
-
-        std::thread::spawn(move || {
-            let mut prealloc = Vec::new();
-            prealloc.reserve_exact(batch_size);
-
-            'dataloading: while let Ok(shuffle_buffer) = buffer_receiver.recv() {
-                for batch in shuffle_buffer.chunks(batch_size) {
-                    if batch_msg_receiver.try_recv().unwrap_or(false) {
-                        buffer_msg_sender.send(true).unwrap();
-                        break 'dataloading;
-                    } else {
-                        for (pos, result, score) in batch {
-                            prealloc.push(
-                                ChessBoard::from_raw(pos.bbs(), pos.stm(), *score, *result)
-                                    .unwrap(),
-                            );
-                        }
-
-                        if batch_sender.send(prealloc).is_err() {
-                            buffer_msg_sender.send(true).unwrap();
-                            break 'dataloading;
-                        }
-
-                        prealloc = Vec::new();
-                        prealloc.reserve_exact(batch_size);
-                    }
-                }
-            }
-        });
-
-        'dataloading: while let Ok(inputs) = batch_reciever.recv() {
+        'dataloading: while let Ok(inputs) = buffer_receiver.recv() {
             for batch in inputs.chunks(batch_size) {
                 let should_break = f(batch);
 
                 if should_break {
-                    batch_msg_sender.send(true).unwrap();
+                    buffer_msg_sender.send(true).unwrap();
                     break 'dataloading;
                 }
             }
         }
 
-        drop(batch_reciever);
+        drop(buffer_receiver);
     }
 }
 
-fn parse_into_buffer(game: MontyValueFormat, buffer: &mut Vec<(Position, f32, i16)>) {
+fn parse_into_buffer(game: MontyValueFormat, buffer: &mut Vec<DataPoint>) {
     buffer.clear();
 
     let mut pos = game.startpos;
@@ -133,14 +103,20 @@ fn parse_into_buffer(game: MontyValueFormat, buffer: &mut Vec<(Position, f32, i1
 
     for data in game.moves {
         if data.score.abs() < 2000 && data.score != i16::MIN {
-            buffer.push((pos, game.result, data.score));
+            buffer.push(
+                DataPoint {
+                    pos,
+                    result: game.result,
+                    score: data.score,
+                }
+            );
         }
 
         pos.make(data.best_move, &castling);
     }
 }
 
-fn shuffle(data: &mut [(Position, f32, i16)]) {
+fn shuffle(data: &mut [DataPoint]) {
     let mut rng = Rand::with_seed();
 
     for i in (0..data.len()).rev() {
