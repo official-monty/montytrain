@@ -5,12 +5,11 @@ mod loader;
 mod threats;
 
 use arch::make_trainer;
-use bullet::{inputs::InputType, lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
+use bullet::{lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
 
-const HIDDEN_SIZE: usize = 512;
+const HIDDEN_SIZE: usize = 4096;
 
 fn main() {
-    println!("{}", input::ThreatInputs.size());
     let mut trainer = make_trainer(HIDDEN_SIZE);
 
     let schedule = TrainingSchedule {
@@ -48,7 +47,7 @@ fn main() {
         batch_queue_size: 256,
     };
 
-    let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096);
+    let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000);
 
     trainer.run(&schedule, &settings, &data_loader);
 

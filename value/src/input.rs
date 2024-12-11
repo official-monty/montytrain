@@ -47,14 +47,11 @@ fn map_features<F: FnMut(usize)>(position: &Position, mut f: F) {
                     _ => unreachable!(),
                 } & occ;
 
-                if threats == 0 {
-                    f(TOTAL_THREATS + [0, 384][side] + 64 * (piece - 2) + sq)
-                } else {
-                    map_bb(threats, |dest| {
-                        let idx = map_piece_threat(piece, sq, dest);
-                        f(side_offset + pieces[dest] * offsets::END + idx)
-                    });
-                }
+                f(TOTAL_THREATS + [0, 384][side] + 64 * (piece - 2) + sq);
+                map_bb(threats, |dest| {
+                    let idx = map_piece_threat(piece, sq, dest);
+                    f(side_offset + pieces[dest] * offsets::END + idx)
+                });
             });
         }
     }
