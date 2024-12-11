@@ -25,7 +25,7 @@ fn map_features<F: FnMut(usize)>(position: &Position, mut f: F) {
     let mut pieces = [13; 64];
     for side in [Side::WHITE, Side::BLACK] {
         for piece in Piece::PAWN..=Piece::KING {
-            let pc = 6 * side + piece;
+            let pc = 6 * side + piece - 2;
             map_bb(pos.piece(side) & pos.piece(piece), |sq| pieces[sq] = pc);
         }
     }

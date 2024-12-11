@@ -18,7 +18,7 @@ fn main() {
         eval_scale: 400.0,
         steps: TrainingSteps {
             batch_size: 16_384,
-            batches_per_superbatch: 256,
+            batches_per_superbatch: 6104,
             start_superbatch: 1,
             end_superbatch: 2400,
         },
