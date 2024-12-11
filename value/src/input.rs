@@ -8,46 +8,40 @@ use crate::{consts::offsets, threats::map_piece_threat};
 const TOTAL_THREATS: usize = 2 * 12 * offsets::END;
 const TOTAL: usize = TOTAL_THREATS + 768;
 
-fn map_features<F: FnMut(usize)>(position: &Position, mut f: F) {
+fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
+    let mut bbs = pos.bbs();
+    
     // flip to stm perspective
-    let mut pos = if position.stm() == Side::WHITE {
-        *position
-    } else {
-        let mut bbs = [0; 8];
-        for (new, old) in bbs.iter_mut().zip(position.bbs().iter()) {
-            *new = old.swap_bytes()
-        }
-
+    if pos.stm() == Side::WHITE {
         bbs.swap(0, 1);
-
-        Position::from_raw(bbs, false, 0, 0, position.halfm(), position.fullm())
-    };
+        for bb in bbs.iter_mut() {
+            *bb = bb.swap_bytes()
+        }
+    }
 
     // horiontal mirror
-    if pos.king_index() % 8 > 3 {
-        let mut bbs = [0; 8];
-        for (new, &old) in bbs.iter_mut().zip(pos.bbs().iter()) {
-            *new = flip_horizontal(old);
+    let ksq = (bbs[0] & bbs[Piece::KING]).trailing_zeros();
+    if ksq % 8 > 3 {
+        for bb in bbs.iter_mut() {
+            *bb= flip_horizontal(*bb);
         }
-
-        pos = Position::from_raw(bbs, false, 0, 0, pos.halfm(), pos.fullm());
     };
 
     let mut pieces = [13; 64];
     for side in [Side::WHITE, Side::BLACK] {
         for piece in Piece::PAWN..=Piece::KING {
             let pc = 6 * side + piece - 2;
-            map_bb(pos.piece(side) & pos.piece(piece), |sq| pieces[sq] = pc);
+            map_bb(bbs[side] & bbs[piece], |sq| pieces[sq] = pc);
         }
     }
 
-    let occ = pos.occ();
+    let occ = bbs[0] | bbs[1];
 
     for side in [Side::WHITE, Side::BLACK] {
         let side_offset = 12 * offsets::END * side;
 
         for piece in Piece::PAWN..=Piece::KING {
-            map_bb(pos.piece(side) & pos.piece(piece), |sq| {
+            map_bb(bbs[side] & bbs[piece], |sq| {
                 let threats = match piece {
                     Piece::PAWN => Attacks::pawn(sq, side),
                     Piece::KNIGHT => Attacks::knight(sq),
