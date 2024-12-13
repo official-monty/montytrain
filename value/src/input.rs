@@ -76,15 +76,20 @@ fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
                     _ => unreachable!(),
                 } & occ;
 
-                f(TOTAL_THREATS + [0, 384][side] + 64 * (piece - 2) + sq);
-                count += 1;
+                let mut any = false;
                 map_bb(threats, |dest| {
                     let enemy = (1 << dest) & opps > 0;
                     if let Some(idx) = map_piece_threat(piece, sq, dest, pieces[dest], enemy) {
                         f(side_offset + idx);
                         count += 1;
+                        any = true;
                     }
                 });
+
+                if !any {
+                    f(TOTAL_THREATS + [0, 384][side] + 64 * (piece - 2) + sq);
+                    count += 1;
+                }
             });
         }
     }
@@ -179,7 +184,7 @@ impl IntoIterator for DataPoint {
     }
 }
 
-const MAX_ACTIVE: usize = 128 + 32;
+const MAX_ACTIVE: usize = 128;
 
 #[derive(Clone, Copy, Default)]
 pub struct ThreatInputs;
