@@ -30,8 +30,7 @@ fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
     let mut pieces = [13; 64];
     for side in [Side::WHITE, Side::BLACK] {
         for piece in Piece::PAWN..=Piece::KING {
-            let pc = 6 * side + piece - 2;
-            map_bb(bbs[side] & bbs[piece], |sq| pieces[sq] = pc);
+            map_bb(bbs[side] & bbs[piece], |sq| pieces[sq] = piece - 2);
         }
     }
 
@@ -39,6 +38,7 @@ fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
 
     for side in [Side::WHITE, Side::BLACK] {
         let side_offset = 12 * offsets::END * side;
+        let opps = bbs[side ^ 1];
 
         for piece in Piece::PAWN..=Piece::KING {
             map_bb(bbs[side] & bbs[piece], |sq| {
@@ -54,8 +54,10 @@ fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
 
                 f(TOTAL_THREATS + [0, 384][side] + 64 * (piece - 2) + sq);
                 map_bb(threats, |dest| {
-                    let idx = map_piece_threat(piece, sq, dest);
-                    f(side_offset + pieces[dest] * offsets::END + idx)
+                    let enemy = (1 << dest) & opps > 0;
+                    if let Some(idx) = map_piece_threat(piece, sq, dest, pieces[dest], enemy) {
+                        f(side_offset + idx);
+                    }
                 });
             });
         }
