@@ -3,7 +3,7 @@ use std::{str::FromStr, sync::atomic::{AtomicUsize, Ordering}};
 use bullet::{format::BulletFormat, inputs};
 use montyformat::chess::{Attacks, Castling, Piece, Position, Side};
 
-use crate::{consts::offsets, threats::map_piece_threat};
+use crate::{consts::{attacks, offsets}, threats::map_piece_threat};
 
 const TOTAL_THREATS: usize = 2 * offsets::END;
 const TOTAL: usize = TOTAL_THREATS + 768;
@@ -69,9 +69,9 @@ fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
                 let threats = match piece {
                     Piece::PAWN => Attacks::pawn(sq, side),
                     Piece::KNIGHT => Attacks::knight(sq),
-                    Piece::BISHOP => Attacks::bishop(sq, occ),
-                    Piece::ROOK => Attacks::rook(sq, occ),
-                    Piece::QUEEN => Attacks::queen(sq, occ),
+                    Piece::BISHOP => attacks::BISHOP[sq],
+                    Piece::ROOK => attacks::ROOK[sq],
+                    Piece::QUEEN => attacks::QUEEN[sq],
                     Piece::KING => Attacks::king(sq),
                     _ => unreachable!(),
                 } & occ;
@@ -165,7 +165,7 @@ impl IntoIterator for DataPoint {
 
     fn into_iter(self) -> Self::IntoIter {
         let mut res = ThreatInputsIter {
-            features: [0; 128],
+            features: [0; MAX_ACTIVE],
             active: 0,
             curr: 0,
         };
@@ -179,11 +179,13 @@ impl IntoIterator for DataPoint {
     }
 }
 
+const MAX_ACTIVE: usize = 128 + 32;
+
 #[derive(Clone, Copy, Default)]
 pub struct ThreatInputs;
 
 pub struct ThreatInputsIter {
-    features: [usize; 128],
+    features: [usize; MAX_ACTIVE],
     active: usize,
     curr: usize,
 }
@@ -197,7 +199,7 @@ impl inputs::InputType for ThreatInputs {
     }
 
     fn max_active_inputs(&self) -> usize {
-        128
+        MAX_ACTIVE
     }
 
     fn inputs(&self) -> usize {
