@@ -58,8 +58,8 @@ fn main() {
         batch_queue_size: 256,
     };
 
-    let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096);
-    //let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000);
+    //let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096);
+    let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000);
 
     trainer.run(&schedule, &settings, &data_loader);
 

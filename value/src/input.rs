@@ -12,7 +12,7 @@ static COUNT: AtomicUsize = AtomicUsize::new(0);
 static SQRED: AtomicUsize = AtomicUsize::new(0);
 static EVALS: AtomicUsize = AtomicUsize::new(0);
 static MAX: AtomicUsize = AtomicUsize::new(0);
-const TRACK: bool = true;
+const TRACK: bool = false;
 
 pub fn print_feature_stats() {
     let count = COUNT.load(Ordering::Relaxed);
