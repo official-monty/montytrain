@@ -5,7 +5,7 @@ use montyformat::chess::{Attacks, Castling, Piece, Position, Side};
 
 use crate::{consts::offsets, threats::map_piece_threat};
 
-const TOTAL_THREATS: usize = 2 * 12 * offsets::END;
+const TOTAL_THREATS: usize = 2 * offsets::END;
 const TOTAL: usize = TOTAL_THREATS + 768;
 
 fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
@@ -30,14 +30,15 @@ fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
     let mut pieces = [13; 64];
     for side in [Side::WHITE, Side::BLACK] {
         for piece in Piece::PAWN..=Piece::KING {
-            map_bb(bbs[side] & bbs[piece], |sq| pieces[sq] = piece - 2);
+            let pc = 6 * side + piece - 2;
+            map_bb(bbs[side] & bbs[piece], |sq| pieces[sq] = pc);
         }
     }
 
     let occ = bbs[0] | bbs[1];
 
     for side in [Side::WHITE, Side::BLACK] {
-        let side_offset = 12 * offsets::END * side;
+        let side_offset = offsets::END * side;
         let opps = bbs[side ^ 1];
 
         for piece in Piece::PAWN..=Piece::KING {

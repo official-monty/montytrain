@@ -5,11 +5,22 @@ mod loader;
 mod threats;
 
 use arch::make_trainer;
-use bullet::{lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
+use bullet::{inputs::InputType, lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
+use consts::indices;
+use input::ThreatInputs;
 
-const HIDDEN_SIZE: usize = 4096;
+const HIDDEN_SIZE: usize = 256;
 
 fn main() {
+    println!("Attacks:");
+    println!("Pawn   : {}", indices::PAWN);
+    println!("Bishop : {}", indices::BISHOP[64]);
+    println!("Knight : {}", indices::KNIGHT[64]);
+    println!("Rook   : {}", indices::ROOK[64]);
+    println!("Queen  : {}", indices::QUEEN[64]);
+    println!("King   : {}", indices::KING[64]);
+
+    println!("Inputs: {}", ThreatInputs.size());
     let mut trainer = make_trainer(HIDDEN_SIZE);
 
     let schedule = TrainingSchedule {
@@ -47,7 +58,8 @@ fn main() {
         batch_queue_size: 256,
     };
 
-    let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000);
+    let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096);
+    //let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000);
 
     trainer.run(&schedule, &settings, &data_loader);
 

@@ -28,15 +28,26 @@ macro_rules! init_add_assign {
 }
 
 pub mod offsets {
+    use super::indices;
+
+    pub const PAWN: usize = 0;
+    pub const KNIGHT: usize = PAWN + 6 * indices::PAWN;
+    pub const BISHOP: usize = KNIGHT + 12 * indices::KNIGHT[64];
+    pub const  ROOK: usize = BISHOP + 10 * indices::BISHOP[64];
+    pub const QUEEN: usize = ROOK + 10 * indices::ROOK[64];
+    pub const KING: usize = QUEEN + 12 * indices::QUEEN[64];
+    pub const END: usize = KING + 8 * indices::KING[64];
+}
+
+pub mod indices {
     use super::attacks;
 
-    pub const PAWN_TOTAL: usize = 84;
-    pub const KNIGHT: [usize; 65] = init_add_assign!(|sq, PAWN_TOTAL, 64| attacks::KNIGHT[sq].count_ones() as usize);
-    pub const BISHOP: [usize; 65] = init_add_assign!(|sq, KNIGHT[64], 64| attacks::KNIGHT[sq].count_ones() as usize);
-    pub const  ROOK: [usize; 65] = init_add_assign!(|sq, BISHOP[64], 64| attacks::ROOK[sq].count_ones() as usize);
-    pub const QUEEN: [usize; 65] = init_add_assign!(|sq, ROOK[64], 64| attacks::QUEEN[sq].count_ones() as usize);
-    pub const KING: [usize; 65] = init_add_assign!(|sq, QUEEN[64], 64| attacks::KING[sq].count_ones() as usize);
-    pub const END: usize = KING[64];
+    pub const PAWN: usize = 84;
+    pub const KNIGHT: [usize; 65] = init_add_assign!(|sq, 0, 64| attacks::KNIGHT[sq].count_ones() as usize);
+    pub const BISHOP: [usize; 65] = init_add_assign!(|sq, 0, 64| attacks::BISHOP[sq].count_ones() as usize);
+    pub const  ROOK: [usize; 65] = init_add_assign!(|sq, 0, 64| attacks::ROOK[sq].count_ones() as usize);
+    pub const QUEEN: [usize; 65] = init_add_assign!(|sq, 0, 64| attacks::QUEEN[sq].count_ones() as usize);
+    pub const KING: [usize; 65] = init_add_assign!(|sq, 0, 64| attacks::KING[sq].count_ones() as usize);
 }
 
 pub mod attacks {
