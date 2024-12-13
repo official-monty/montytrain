@@ -5,10 +5,10 @@ use crate::consts::{attacks, indices, offsets};
 pub fn map_piece_threat(piece: usize, src: usize, dest: usize, target: usize, enemy: bool) -> Option<usize> {
     match piece {
         Piece::PAWN => map_pawn_threat(src, dest, target, enemy),
-        Piece::KNIGHT => map_knight_threat(src, dest),
+        Piece::KNIGHT => map_knight_threat(src, dest, target),
         Piece::BISHOP => map_bishop_threat(src, dest, target),
         Piece::ROOK => map_rook_threat(src, dest, target),
-        Piece::QUEEN => map_queen_threat(src, dest),
+        Piece::QUEEN => map_queen_threat(src, dest, target),
         Piece::KING => map_king_threat(src, dest, target),
         _ => unreachable!(),
     }
@@ -46,8 +46,9 @@ fn map_pawn_threat(src: usize, dest: usize, target: usize, enemy: bool) -> Optio
     }
 }
 
-fn map_knight_threat(src: usize, dest: usize) -> Option<usize> {
-    let threat = offsets::KNIGHT + indices::KNIGHT[src] + below(src, dest, &attacks::KNIGHT);
+fn map_knight_threat(src: usize, dest: usize, target: usize) -> Option<usize> {
+    let idx = indices::KNIGHT[src] + below(src, dest, &attacks::KNIGHT);
+    let threat = offsets::KNIGHT + target * indices::KNIGHT[64] + idx;
 
     assert!(threat >= offsets::KNIGHT, "{threat}");
     assert!(threat < offsets::BISHOP, "{threat}");
@@ -85,8 +86,9 @@ fn map_rook_threat(src: usize, dest: usize, target: usize) -> Option<usize> {
     }
 }
 
-fn map_queen_threat(src: usize, dest: usize) -> Option<usize> {
-    let threat = offsets::QUEEN + indices::QUEEN[src] + below(src, dest, &attacks::QUEEN);
+fn map_queen_threat(src: usize, dest: usize, target: usize) -> Option<usize> {
+    let idx = indices::QUEEN[src] + below(src, dest, &attacks::QUEEN);
+    let threat = offsets::QUEEN + target * indices::QUEEN[64] + idx;
 
     assert!(threat >= offsets::QUEEN, "{threat}");
     assert!(threat < offsets::KING, "{threat}");
