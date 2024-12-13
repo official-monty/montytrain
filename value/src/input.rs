@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, sync::atomic::{AtomicUsize, Ordering}};
 
 use bullet::{format::BulletFormat, inputs};
 use montyformat::chess::{Attacks, Castling, Piece, Position, Side};
@@ -7,6 +7,27 @@ use crate::{consts::offsets, threats::map_piece_threat};
 
 const TOTAL_THREATS: usize = 2 * offsets::END;
 const TOTAL: usize = TOTAL_THREATS + 768;
+
+static COUNT: AtomicUsize = AtomicUsize::new(0);
+static SQRED: AtomicUsize = AtomicUsize::new(0);
+static EVALS: AtomicUsize = AtomicUsize::new(0);
+static MAX: AtomicUsize = AtomicUsize::new(0);
+const TRACK: bool = true;
+
+pub fn print_feature_stats() {
+    let count = COUNT.load(Ordering::Relaxed);
+    let sqred = SQRED.load(Ordering::Relaxed);
+    let evals = EVALS.load(Ordering::Relaxed);
+    let max = MAX.load(Ordering::Relaxed);
+    
+    let mean = count as f64 / evals as f64;
+    let var = sqred as f64 / evals as f64 - mean.powi(2);
+    let pct = 1.96 * var.sqrt();
+
+    println!("Total Evals: {evals}");
+    println!("Maximum Active Features: {max}");
+    println!("Active Features: {mean:.3} +- {pct:.3} (95%)");
+}
 
 fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
     let mut bbs = pos.bbs();
@@ -35,6 +56,8 @@ fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
         }
     }
 
+    let mut count = 0;
+
     let occ = bbs[0] | bbs[1];
 
     for side in [Side::WHITE, Side::BLACK] {
@@ -54,13 +77,26 @@ fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
                 } & occ;
 
                 f(TOTAL_THREATS + [0, 384][side] + 64 * (piece - 2) + sq);
+                count += 1;
                 map_bb(threats, |dest| {
                     let enemy = (1 << dest) & opps > 0;
                     if let Some(idx) = map_piece_threat(piece, sq, dest, pieces[dest], enemy) {
                         f(side_offset + idx);
+                        count += 1;
                     }
                 });
             });
+        }
+    }
+
+    if TRACK {
+        COUNT.fetch_add(count, Ordering::Relaxed);
+        SQRED.fetch_add(count * count, Ordering::Relaxed);
+        let evals = EVALS.fetch_add(1, Ordering::Relaxed);
+        MAX.fetch_max(count, Ordering::Relaxed);
+    
+        if (evals + 1) % (16384 * 6104) == 0 {
+            print_feature_stats();
         }
     }
 }
