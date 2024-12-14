@@ -110,7 +110,7 @@ fn convert(sender: &SyncSender<Vec<ChessBoard>>, game_bytes: &[u8], stats: &mut 
             stats.caps += 1;
         }
 
-        if result.score == i16::MIN || result.score.abs() > 2000 {
+        if result.score == i16::MIN || result.score.abs() > 4000 {
             write = false;
             stats.scores += 1;
         }
