@@ -1,11 +1,20 @@
 use std::{
-    fs::File,
-    io::{BufReader, BufWriter},
+    fs::File, io::{BufReader, BufWriter, Cursor}, sync::mpsc, time::Instant
 };
 
 use bullet::format::{BulletFormat, ChessBoard};
 
-use montyformat::MontyValueFormat;
+use montyformat::{FastDeserialise, MontyValueFormat};
+
+#[derive(Default)]
+struct Stats {
+    positions: usize,
+    filtered: usize,
+    checks: usize,
+    caps: usize,
+    scores: usize,
+    games: usize,
+}
 
 fn main() {
     let mut args = std::env::args();
@@ -17,69 +26,89 @@ fn main() {
     let mut reader = BufReader::new(File::open(inp_path).unwrap());
     let mut writer = BufWriter::new(File::create(out_path).unwrap());
 
-    let mut buf = Vec::new();
+    let timer = Instant::now();
 
-    let mut positions = 0;
-    let mut filtered = 0;
-    let checks = 0;
-    let caps = 0;
-    let mut scores = 0;
-    let res = 0;
-    let mut games = 0;
+    let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(256);
 
-    loop {
-        if let Ok(game) = MontyValueFormat::deserialise_from(&mut reader, Vec::new()) {
+    std::thread::spawn(move || {
+        loop {
+            let mut buffer = Vec::new();
+            if let Ok(()) = MontyValueFormat::deserialise_fast_into_buffer(&mut reader, &mut buffer) {
+                sender.send(buffer).unwrap();
+            } else {
+                break;
+            }
+        }
+    });
+
+    let (sender2, receiver2) = mpsc::sync_channel::<Vec<ChessBoard>>(256);
+
+    let lock = std::thread::spawn(move || {
+        let mut stats = Stats::default();
+
+        while let Ok(game_bytes) = receiver.recv() {
+            let mut reader = Cursor::new(&game_bytes);
+            let game = MontyValueFormat::deserialise_from(&mut reader, Vec::new()).unwrap();
+
+            let mut buf = Vec::new();
+
             let mut pos = game.startpos;
             let castling = &game.castling;
 
             for result in game.moves {
                 let mut write = true;
 
-                //if board.in_check() {
-                //    write = false;
-                //    checks += 1;
-                //}
-    
-                //if mov.is_capture() {
-                //    write = false;
-                //    caps += 1;
-                //}
-    
+                if pos.in_check() {
+                    write = false;
+                    stats.checks += 1;
+                }
+
+                if result.best_move.is_capture() {
+                    write = false;
+                    stats.caps += 1;
+                }
+
                 if result.score == i16::MIN || result.score.abs() > 2000 {
                     write = false;
-                    scores += 1;
+                    stats.scores += 1;
                 }
-    
-                //if write {
-                //    let wdl = 1.0 / (1.0 + (-f32::from(score) / 400.0).exp());
-                //    if (result - wdl).abs() > 0.6 {
-                //        write = false;
-                //        res += 1;
-                //    }
-                //}
-    
+
                 if write {
                     buf.push(ChessBoard::from_raw(pos.bbs(), pos.stm(), result.score, game.result).unwrap());
                 } else {
-                    filtered += 1;
+                    stats.filtered += 1;
                 }
-    
-                positions += 1;
-                if positions % 4194304 == 0 {
-                    println!("Processed: {positions}");
+
+                stats.positions += 1;
+                if stats.positions % 4194304 == 0 {
+                    let elapsed = timer.elapsed().as_secs_f64();
+                    let pps = (stats.positions / 1000) as f64 / elapsed;
+                    println!("Processed: {}, Time: {elapsed:.2}s, PPS: {pps:.2}k", stats.positions);
                 }
 
                 pos.make(result.best_move, castling);
             }
-        } else {
-            break;
+
+            stats.games += 1;
+
+            sender2.send(buf).unwrap();
         }
 
-        games += 1;
+        stats
+    });
 
+    while let Ok(buf) = receiver2.recv() {
         ChessBoard::write_to_bin(&mut writer, &buf).unwrap();
-        buf.clear();
     }
+
+    let Stats {
+        positions,
+        filtered,
+        checks,
+        caps,
+        scores,
+        games,
+    } = lock.join().unwrap();
 
     println!("Positions: {positions}");
     println!("Games    : {games}");
@@ -88,6 +117,5 @@ fn main() {
     println!(" - Checks  : {checks}");
     println!(" - Captures: {caps}");
     println!(" - Scores  : {scores}");
-    println!(" - Results : {res}");
     println!("Remaining: {}", positions - filtered);
 }
