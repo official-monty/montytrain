@@ -1,12 +1,12 @@
 use std::{
-    fs::File, io::{BufReader, BufWriter, Cursor}, sync::mpsc, time::Instant
+    fs::File, io::{BufReader, BufWriter, Cursor}, sync::mpsc::{self, SyncSender}, time::Instant
 };
 
 use bullet::format::{BulletFormat, ChessBoard};
 
 use montyformat::{FastDeserialise, MontyValueFormat};
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 struct Stats {
     positions: usize,
     filtered: usize,
@@ -22,6 +22,9 @@ fn main() {
 
     let inp_path = args.next().unwrap();
     let out_path = args.next().unwrap();
+    let threads = args.next().unwrap().parse().unwrap();
+    let per_thread_batch_size = 8192 * 4;
+    let batch_size = threads * per_thread_batch_size;
 
     let mut reader = BufReader::new(File::open(inp_path).unwrap());
     let mut writer = BufWriter::new(File::create(out_path).unwrap());
@@ -44,54 +47,20 @@ fn main() {
     let (sender2, receiver2) = mpsc::sync_channel::<Vec<ChessBoard>>(256);
 
     let lock = std::thread::spawn(move || {
-        let mut stats = Stats::default();
+        let mut stats = vec![Stats::default(); threads];
+        let mut game_buffer = Vec::new();
 
         while let Ok(game_bytes) = receiver.recv() {
-            let mut reader = Cursor::new(&game_bytes);
-            let game = MontyValueFormat::deserialise_from(&mut reader, Vec::new()).unwrap();
-
-            let mut buf = Vec::new();
-
-            let mut pos = game.startpos;
-            let castling = &game.castling;
-
-            for result in game.moves {
-                let mut write = true;
-
-                if pos.in_check() {
-                    write = false;
-                    stats.checks += 1;
-                }
-
-                if result.best_move.is_capture() {
-                    write = false;
-                    stats.caps += 1;
-                }
-
-                if result.score == i16::MIN || result.score.abs() > 2000 {
-                    write = false;
-                    stats.scores += 1;
-                }
-
-                if write {
-                    buf.push(ChessBoard::from_raw(pos.bbs(), pos.stm(), result.score, game.result).unwrap());
-                } else {
-                    stats.filtered += 1;
-                }
-
-                stats.positions += 1;
-                if stats.positions % 4194304 == 0 {
-                    let elapsed = timer.elapsed().as_secs_f64();
-                    let pps = (stats.positions / 1000) as f64 / elapsed;
-                    println!("Processed: {}, Time: {elapsed:.2}s, PPS: {pps:.2}k", stats.positions);
-                }
-
-                pos.make(result.best_move, castling);
+            game_buffer.push(game_bytes);
+            if game_buffer.len() % batch_size == 0 {
+                convert_buffer(threads, &sender2, &game_buffer, &mut stats);
+                report(&stats, &timer);
+                game_buffer.clear();
             }
+        }
 
-            stats.games += 1;
-
-            sender2.send(buf).unwrap();
+        if !game_buffer.is_empty() {
+            convert_buffer(threads, &sender2, &game_buffer, &mut stats);
         }
 
         stats
@@ -101,14 +70,81 @@ fn main() {
         ChessBoard::write_to_bin(&mut writer, &buf).unwrap();
     }
 
-    let Stats {
-        positions,
-        filtered,
-        checks,
-        caps,
-        scores,
-        games,
-    } = lock.join().unwrap();
+    report(&lock.join().unwrap(), &timer);
+}
+
+fn convert_buffer(threads: usize, sender: &SyncSender<Vec<ChessBoard>>, games: &[Vec<u8>], stats: &mut [Stats]) {
+    let chunk_size = games.len().div_ceil(threads);
+
+    std::thread::scope(|s| {
+        for (chunk, sub_stats) in games.chunks(chunk_size).zip(stats.iter_mut()) {
+            let this_sender = sender.clone();
+            s.spawn(move || {
+                for game_bytes in chunk {
+                    convert(&this_sender, game_bytes, sub_stats);
+                }
+            });
+        }
+    });
+}
+
+fn convert(sender: &SyncSender<Vec<ChessBoard>>, game_bytes: &[u8], stats: &mut Stats) {
+    let mut reader = Cursor::new(&game_bytes);
+    let game = MontyValueFormat::deserialise_from(&mut reader, Vec::new()).unwrap();
+
+    let mut buf = Vec::new();
+
+    let mut pos = game.startpos;
+    let castling = &game.castling;
+
+    for result in game.moves {
+        let mut write = true;
+
+        if pos.in_check() {
+            write = false;
+            stats.checks += 1;
+        }
+
+        if result.best_move.is_capture() {
+            write = false;
+            stats.caps += 1;
+        }
+
+        if result.score == i16::MIN || result.score.abs() > 2000 {
+            write = false;
+            stats.scores += 1;
+        }
+
+        if write {
+            buf.push(ChessBoard::from_raw(pos.bbs(), pos.stm(), result.score, game.result).unwrap());
+        } else {
+            stats.filtered += 1;
+        }
+
+        stats.positions += 1;
+        pos.make(result.best_move, castling);
+    }
+
+    stats.games += 1;
+    sender.send(buf).unwrap();
+}
+
+fn report(stats: &[Stats], timer: &Instant) {
+    let mut positions = 0;
+    let mut filtered = 0;
+    let mut checks = 0;
+    let mut caps = 0;
+    let mut scores = 0;
+    let mut games = 0;
+    
+    for sub_stats in stats {
+        positions += sub_stats.positions;
+        filtered += sub_stats.filtered;
+        checks += sub_stats.checks;
+        caps += sub_stats.caps;
+        scores += sub_stats.scores;
+        games += sub_stats.games;
+    }
 
     println!("Positions: {positions}");
     println!("Games    : {games}");
@@ -118,4 +154,6 @@ fn main() {
     println!(" - Captures: {caps}");
     println!(" - Scores  : {scores}");
     println!("Remaining: {}", positions - filtered);
+    println!("Speed: {:.0}k/sec", (positions / 1000) as f64 / timer.elapsed().as_secs_f64());
+    println!("---------------------");
 }
