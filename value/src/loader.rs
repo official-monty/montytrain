@@ -115,17 +115,7 @@ impl DataLoader<ChessBoard> for BinpackLoader {
             }
         });
 
-        let mut t = std::time::Instant::now();
-        let mut max = 0f32;
-        let mut a = true;
-        'dataloading: while let Ok(shuffle_buffer) = buffer_receiver.recv() {
-            let elapsed = t.elapsed().as_secs_f32();
-            if !a {
-                max = max.max(elapsed);
-            }
-            a = false;
-            
-            println!("{elapsed:.3}s, max: {max:.3}");
+        'dataloading: while let Ok(shuffle_buffer) = buffer_receiver.recv() {            
             for batch in shuffle_buffer.chunks(batch_size) {
                 let should_break = f(batch);
 
@@ -134,7 +124,6 @@ impl DataLoader<ChessBoard> for BinpackLoader {
                     break 'dataloading;
                 }
             }
-            t = std::time::Instant::now();
         }
 
         drop(buffer_receiver);
