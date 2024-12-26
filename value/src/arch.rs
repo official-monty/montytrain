@@ -1,14 +1,11 @@
 use bullet::{
-    inputs::InputType,
-    operations,
-    optimiser::{AdamWOptimiser, AdamWParams},
-    outputs, Activation, ExecutionContext, Graph, GraphBuilder, Node, QuantTarget, Shape, Trainer,
+    default::{Layout, SavedFormat}, inputs::SparseInputType, operations, optimiser::{AdamWOptimiser, AdamWParams}, outputs, Activation, ExecutionContext, Graph, GraphBuilder, Node, QuantTarget, Shape, Trainer
 };
 
 use crate::input::ThreatInputs;
 
 pub fn make_trainer(l1: usize) -> Trainer<AdamWOptimiser, ThreatInputs, outputs::Single> {
-    let num_inputs = ThreatInputs.size();
+    let num_inputs = ThreatInputs.num_inputs();
 
     let (mut graph, output_node) = build_network(num_inputs, l1);
 
@@ -31,17 +28,17 @@ pub fn make_trainer(l1: usize) -> Trainer<AdamWOptimiser, ThreatInputs, outputs:
         ThreatInputs,
         outputs::Single,
         vec![
-            ("l0w".to_string(), QuantTarget::Float),
-            ("l0b".to_string(), QuantTarget::Float),
-            ("l1w".to_string(), QuantTarget::Float),
-            ("l1b".to_string(), QuantTarget::Float),
-            ("l2w".to_string(), QuantTarget::Float),
-            ("l2b".to_string(), QuantTarget::Float),
-            ("l3w".to_string(), QuantTarget::Float),
-            ("l3b".to_string(), QuantTarget::Float),
-            ("pstw".to_string(), QuantTarget::Float),
-            ("pstb".to_string(), QuantTarget::Float),
+            SavedFormat::new("l0w", QuantTarget::I16(512), Layout::Normal),
+            SavedFormat::new("l0b", QuantTarget::I16(512), Layout::Normal),
+            SavedFormat::new("l1w", QuantTarget::I16(1024), Layout::Transposed),
+            SavedFormat::new("l1b", QuantTarget::I16(1024), Layout::Transposed),
+            SavedFormat::new("l2w", QuantTarget::Float, Layout::Normal),
+            SavedFormat::new("l2b", QuantTarget::Float, Layout::Normal),
+            SavedFormat::new("l3w", QuantTarget::Float, Layout::Normal),
+            SavedFormat::new("l3b", QuantTarget::Float, Layout::Normal),
+            SavedFormat::new("pst", QuantTarget::Float, Layout::Normal),
         ],
+        false,
     )
 }
 
@@ -53,8 +50,7 @@ fn build_network(inputs: usize, l1: usize) -> (Graph, Node) {
     let targets = builder.create_input("targets", Shape::new(3, 1));
 
     // trainable weights
-    let pstw = builder.create_weights("pstw", Shape::new(3, inputs));
-    let pstb = builder.create_weights("pstb", Shape::new(3, 1));
+    let pst = builder.create_weights("pstw", Shape::new(3, inputs));
     let l0w = builder.create_weights("l0w", Shape::new(l1, inputs));
     let l0b = builder.create_weights("l0b", Shape::new(l1, 1));
     let l1w = builder.create_weights("l1w", Shape::new(16, l1 / 2));
@@ -74,7 +70,7 @@ fn build_network(inputs: usize, l1: usize) -> (Graph, Node) {
     let l3 = operations::activate(&mut builder, l3, Activation::SCReLU);
     let l4 = operations::affine(&mut builder, l3w, l3, l3b);
 
-    let pst = operations::affine(&mut builder, pstw, stm, pstb);
+    let pst = operations::matmul(&mut builder, pst, stm);
 
     let predicted = operations::add(&mut builder, l4, pst);
     operations::softmax_crossentropy_loss(&mut builder, predicted, targets);

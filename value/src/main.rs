@@ -5,7 +5,7 @@ mod loader;
 mod threats;
 
 use arch::make_trainer;
-use bullet::{inputs::InputType, lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
+use bullet::{inputs::SparseInputType, lr, optimiser, wdl, LocalSettings, NetworkTrainer, TrainingSchedule, TrainingSteps};
 use consts::indices;
 use input::ThreatInputs;
 
@@ -20,7 +20,7 @@ fn main() {
     println!("Queen  : {}", indices::QUEEN[64]);
     println!("King   : {}", indices::KING[64]);
 
-    println!("Inputs: {}", ThreatInputs.size());
+    println!("Inputs: {}", ThreatInputs.num_inputs());
     let mut trainer = make_trainer(HIDDEN_SIZE);
 
     let schedule = TrainingSchedule {
@@ -61,8 +61,9 @@ fn main() {
     //let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096, 4);
     let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000, 8);
 
+    let (preparer, test_preparer) = trainer.training_preamble(&schedule, &settings, &data_loader, &None::<loader::BinpackLoader>); 
 
-    trainer.run(&schedule, &settings, &data_loader);
+    trainer.train_custom(&preparer, &test_preparer, &schedule, &settings, |_, _, _, _| {});
 
     for fen in [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
