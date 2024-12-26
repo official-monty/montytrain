@@ -55,11 +55,12 @@ fn main() {
         threads: 8,
         test_set: None,
         output_directory: "checkpoints",
-        batch_queue_size: 256,
+        batch_queue_size: 32,
     };
 
-    //let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096);
-    let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000);
+    //let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096, 4);
+    let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000, 8);
+
 
     trainer.run(&schedule, &settings, &data_loader);
 
