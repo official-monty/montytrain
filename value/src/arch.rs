@@ -28,15 +28,15 @@ pub fn make_trainer(l1: usize) -> Trainer<AdamWOptimiser, ThreatInputs, outputs:
         ThreatInputs,
         outputs::Single,
         vec![
+            SavedFormat::new("pst", QuantTarget::Float, Layout::Normal),
             SavedFormat::new("l0w", QuantTarget::I16(512), Layout::Normal),
             SavedFormat::new("l0b", QuantTarget::I16(512), Layout::Normal),
             SavedFormat::new("l1w", QuantTarget::I16(1024), Layout::Transposed),
-            SavedFormat::new("l1b", QuantTarget::I16(1024), Layout::Transposed),
+            SavedFormat::new("l1b", QuantTarget::I16(1024), Layout::Normal),
             SavedFormat::new("l2w", QuantTarget::Float, Layout::Normal),
             SavedFormat::new("l2b", QuantTarget::Float, Layout::Normal),
             SavedFormat::new("l3w", QuantTarget::Float, Layout::Normal),
             SavedFormat::new("l3b", QuantTarget::Float, Layout::Normal),
-            SavedFormat::new("pst", QuantTarget::Float, Layout::Normal),
         ],
         false,
     )
