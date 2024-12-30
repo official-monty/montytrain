@@ -9,7 +9,7 @@ use bullet::{inputs::SparseInputType, lr, optimiser, wdl, LocalSettings, Network
 use consts::indices;
 use input::ThreatInputs;
 
-const HIDDEN_SIZE: usize = 256;
+const HIDDEN_SIZE: usize = 3072;
 
 fn main() {
     println!("Attacks:");
@@ -30,15 +30,15 @@ fn main() {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 2400,
+            end_superbatch: 3000,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
         lr_scheduler: lr::ExponentialDecayLR {
             initial_lr: 0.001,
-            final_lr: 0.0000005,
-            final_superbatch: 2400,
+            final_lr: 0.0000001,
+            final_superbatch: 3000,
         },
-        save_rate: 40,
+        save_rate: 100,
     };
 
     let optimiser_params = optimiser::AdamWParams {

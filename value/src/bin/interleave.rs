@@ -6,7 +6,7 @@ use std::{
 use montyformat::{MontyValueFormat, FastDeserialise};
 
 fn main() -> std::io::Result<()> {
-    let folder_path = "/home/admin/monty_value_data/4096"; // Specify the folder to scan
+    let folder_path = "/home/privateclient/monty_value_training/value_data"; // Specify the folder to scan
     let output = "interleaved-value.binpack";
 
     // Scan the folder and collect file paths with the specified extension
