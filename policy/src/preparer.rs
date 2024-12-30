@@ -63,7 +63,7 @@ pub struct PreparedData {
 impl PreparedData {
     pub fn new(data: &[DecompressedData], threads: usize) -> Self {
         let batch_size = data.len();
-        let chunk_size = (batch_size + threads - 1) / threads;
+        let chunk_size = batch_size.div_ceil(threads);
 
         let mut prep = Self {
             batch_size,

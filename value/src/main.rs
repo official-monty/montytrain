@@ -1,13 +1,26 @@
 mod arch;
+mod consts;
 mod input;
 mod loader;
+mod threats;
 
 use arch::make_trainer;
-use bullet::{lr, optimiser, wdl, LocalSettings, TrainingSchedule, TrainingSteps};
+use bullet::{inputs::SparseInputType, lr, optimiser, wdl, LocalSettings, NetworkTrainer, TrainingSchedule, TrainingSteps};
+use consts::indices;
+use input::ThreatInputs;
 
-const HIDDEN_SIZE: usize = 6144;
+const HIDDEN_SIZE: usize = 3072;
 
 fn main() {
+    println!("Attacks:");
+    println!("Pawn   : {}", indices::PAWN);
+    println!("Bishop : {}", indices::BISHOP[64]);
+    println!("Knight : {}", indices::KNIGHT[64]);
+    println!("Rook   : {}", indices::ROOK[64]);
+    println!("Queen  : {}", indices::QUEEN[64]);
+    println!("King   : {}", indices::KING[64]);
+
+    println!("Inputs: {}", ThreatInputs.num_inputs());
     let mut trainer = make_trainer(HIDDEN_SIZE);
 
     let schedule = TrainingSchedule {
@@ -17,15 +30,15 @@ fn main() {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 2400,
+            end_superbatch: 3000,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
         lr_scheduler: lr::ExponentialDecayLR {
             initial_lr: 0.001,
-            final_lr: 0.0000005,
-            final_superbatch: 2400,
+            final_lr: 0.0000001,
+            final_superbatch: 3000,
         },
-        save_rate: 40,
+        save_rate: 100,
     };
 
     let optimiser_params = optimiser::AdamWParams {
@@ -42,12 +55,15 @@ fn main() {
         threads: 8,
         test_set: None,
         output_directory: "checkpoints",
-        batch_queue_size: 256,
+        batch_queue_size: 32,
     };
 
+    //let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096, 4);
     let data_loader = loader::BinpackLoader::new("/home/privateclient/monty_value_training/interleaved-value.binpack", 96000, 8);
 
-    trainer.run(&schedule, &settings, &data_loader);
+    let (preparer, test_preparer) = trainer.training_preamble(&schedule, &settings, &data_loader, &None::<loader::BinpackLoader>); 
+
+    trainer.train_custom(&preparer, &test_preparer, &schedule, &settings, |_, _, _, _| {});
 
     for fen in [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",

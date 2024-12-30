@@ -5,7 +5,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use bullet::{format::ChessBoard, loader::DataLoader};
+use crate::input::DataPoint;
+
+use bullet::loader::DataLoader;
 use montyformat::{FastDeserialise, MontyValueFormat};
 
 #[derive(Clone)]
@@ -19,13 +21,13 @@ impl BinpackLoader {
     pub fn new(path: &str, buffer_size_mb: usize, threads: usize) -> Self {
         Self {
             file_path: [path.to_string(); 1],
-            buffer_size: buffer_size_mb * 1024 * 1024 / 32 / 2,
+            buffer_size: buffer_size_mb * 1024 * 1024 / std::mem::size_of::<DataPoint>() / 2,
             threads,
         }
     }
 }
 
-impl DataLoader<ChessBoard> for BinpackLoader {
+impl DataLoader<DataPoint> for BinpackLoader {
     fn data_file_paths(&self) -> &[String] {
         &self.file_path
     }
@@ -34,7 +36,7 @@ impl DataLoader<ChessBoard> for BinpackLoader {
         None
     }
 
-    fn map_batches<F: FnMut(&[ChessBoard]) -> bool>(&self, batch_size: usize, mut f: F) {
+    fn map_batches<F: FnMut(&[DataPoint]) -> bool>(&self, batch_size: usize, mut f: F) {
         let mut shuffle_buffer = Vec::new();
         shuffle_buffer.reserve_exact(self.buffer_size);
 
@@ -59,7 +61,7 @@ impl DataLoader<ChessBoard> for BinpackLoader {
             }
         });
 
-        let (game_sender, game_receiver) = mpsc::sync_channel::<Vec<ChessBoard>>(4 * self.threads);
+        let (game_sender, game_receiver) = mpsc::sync_channel::<Vec<DataPoint>>(4 * self.threads);
         let (game_msg_sender, game_msg_receiver) = mpsc::sync_channel::<bool>(1);
 
         let threads = self.threads;
@@ -81,7 +83,7 @@ impl DataLoader<ChessBoard> for BinpackLoader {
             }
         });
 
-        let (buffer_sender, buffer_receiver) = mpsc::sync_channel::<Vec<ChessBoard>>(0);
+        let (buffer_sender, buffer_receiver) = mpsc::sync_channel::<Vec<DataPoint>>(0);
         let (buffer_msg_sender, buffer_msg_receiver) = mpsc::sync_channel::<bool>(1);
 
         std::thread::spawn(move || {
@@ -130,7 +132,7 @@ impl DataLoader<ChessBoard> for BinpackLoader {
     }
 }
 
-fn convert_buffer(threads: usize, sender: &SyncSender<Vec<ChessBoard>>, games: &[Vec<u8>]) {
+fn convert_buffer(threads: usize, sender: &SyncSender<Vec<DataPoint>>, games: &[Vec<u8>]) {
     let chunk_size = games.len().div_ceil(threads);
 
     std::thread::scope(|s| {
@@ -149,7 +151,7 @@ fn convert_buffer(threads: usize, sender: &SyncSender<Vec<ChessBoard>>, games: &
     });
 }
 
-fn parse_into_buffer(game_bytes: &[u8], buffer: &mut Vec<ChessBoard>) {
+fn parse_into_buffer(game_bytes: &[u8], buffer: &mut Vec<DataPoint>) {
     let mut reader = Cursor::new(game_bytes);
     let game = MontyValueFormat::deserialise_from(&mut reader, Vec::new()).unwrap();
 
@@ -157,13 +159,13 @@ fn parse_into_buffer(game_bytes: &[u8], buffer: &mut Vec<ChessBoard>) {
     let castling = game.castling;
 
     for data in game.moves {
-        buffer.push(ChessBoard::from_raw(pos.bbs(), pos.stm(), data.score, game.result).unwrap());
+        buffer.push(DataPoint { pos, result: game.result, score: data.score });
 
         pos.make(data.best_move, &castling);
     }
 }
 
-fn shuffle(data: &mut [ChessBoard]) {
+fn shuffle(data: &mut [DataPoint]) {
     let mut rng = Rand::with_seed();
 
     for i in (0..data.len()).rev() {
