@@ -5,10 +5,7 @@ mod preparer;
 mod trainer;
 
 use bullet::{
-    logger, lr, operations,
-    optimiser::{AdamWOptimiser, AdamWParams, Optimiser},
-    wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, Shape,
-    TrainingSchedule, TrainingSteps,
+    logger, lr, operations, optimiser::{AdamWOptimiser, AdamWParams, Optimiser}, save::{Layout, SavedFormat}, wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, QuantTarget, Shape, TrainingSchedule, TrainingSteps
 };
 use trainer::Trainer;
 
@@ -80,7 +77,12 @@ fn main() {
                 trainer
                     .save_weights_portion(
                         &format!("checkpoints/{ID}-{sb}.network"),
-                        &["l0w", "l0b", "l1w", "l1b"],
+                        &[
+                            SavedFormat::new("l0w", QuantTarget::Float, Layout::Normal),
+                            SavedFormat::new("l0b", QuantTarget::Float, Layout::Normal),
+                            SavedFormat::new("l1w", QuantTarget::Float, Layout::Normal),
+                            SavedFormat::new("l1b", QuantTarget::Float, Layout::Normal),
+                        ],
                     )
                     .unwrap();
             }

@@ -2,9 +2,7 @@ use std::{
     fs::File, io::{BufReader, BufWriter, Cursor}, sync::mpsc::{self, SyncSender}, time::Instant
 };
 
-use bullet::format::{BulletFormat, ChessBoard};
-
-use montyformat::{FastDeserialise, MontyValueFormat};
+use bullet::{format::{BulletFormat, ChessBoard}, montyformat::{FastDeserialise, MontyValueFormat}};
 
 #[derive(Clone, Copy, Default)]
 struct Stats {
