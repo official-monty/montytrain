@@ -118,11 +118,7 @@ fn gain(pos: &Position, mov: &Move) -> i32 {
 fn see(pos: &Position, mov: &Move, threshold: i32) -> bool {
     let sq = usize::from(mov.to());
     assert!(sq < 64, "wha");
-    let mut next = if mov.is_promo() {
-        mov.promo_pc()
-    } else {
-        pos.get_pc(1 << mov.src())
-    };
+    let mut next = if mov.is_promo() { mov.promo_pc() } else { pos.get_pc(1 << mov.src()) };
     let mut score = gain(pos, mov) - threshold - SEE_VALS[next];
 
     if score >= 0 {

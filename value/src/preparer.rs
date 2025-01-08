@@ -1,6 +1,14 @@
-use bullet::{default::loader::{DataLoader, MontyBinpackLoader}, format::ChessBoard, montyformat::chess::{Move, Position}, Shape};
+use bullet::{
+    default::loader::{DataLoader, MontyBinpackLoader},
+    format::ChessBoard,
+    montyformat::chess::{Move, Position},
+    Shape,
+};
 
-use crate::{inputs::{self, INPUT_SIZE, MAX_ACTIVE}, threats::{MAX_THREATS, NUM_THREATS}};
+use crate::{
+    inputs::{self, INPUT_SIZE, MAX_ACTIVE},
+    threats::{MAX_THREATS, NUM_THREATS},
+};
 
 #[derive(Clone)]
 pub struct DataPreparer<T: Fn(&Position, Move, i16, f32) -> bool> {
@@ -9,14 +17,13 @@ pub struct DataPreparer<T: Fn(&Position, Move, i16, f32) -> bool> {
 
 impl<T: Fn(&Position, Move, i16, f32) -> bool> DataPreparer<T> {
     pub fn new(path: &str, buffer_size_mb: usize, threads: usize, f: T) -> Self {
-        Self {
-            loader: MontyBinpackLoader::new(path, buffer_size_mb, threads, f),
-        }
+        Self { loader: MontyBinpackLoader::new(path, buffer_size_mb, threads, f) }
     }
 }
 
 impl<T> bullet::DataPreparer for DataPreparer<T>
-where T: Fn(&Position, Move, i16, f32) -> bool + Clone + Send + Sync + 'static
+where
+    T: Fn(&Position, Move, i16, f32) -> bool + Clone + Send + Sync + 'static,
 {
     type DataType = ChessBoard;
     type PreparedData = PreparedData;
@@ -80,10 +87,7 @@ impl PreparedData {
                 max_active: MAX_THREATS,
                 value: vec![0; MAX_THREATS * batch_size],
             },
-            target: DenseInput {
-                shape: Shape::new(3, batch_size),
-                value: vec![0.0; 3 * batch_size],
-            }
+            target: DenseInput { shape: Shape::new(3, batch_size), value: vec![0.0; 3 * batch_size] },
         };
 
         std::thread::scope(|s| {
@@ -120,10 +124,7 @@ impl PreparedData {
                             input_chunk[input_offset + j] = -1;
                         }
 
-                        assert!(
-                            j <= MAX_ACTIVE,
-                            "More inputs provided than the specified maximum!"
-                        );
+                        assert!(j <= MAX_ACTIVE, "More inputs provided than the specified maximum!");
                     }
                 });
             }

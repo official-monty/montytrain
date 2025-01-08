@@ -5,37 +5,30 @@ mod preparer;
 mod trainer;
 
 use bullet::{
-    logger, lr, operations, optimiser::{AdamWOptimiser, AdamWParams, Optimiser}, save::{Layout, SavedFormat}, wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, QuantTarget, Shape, TrainingSchedule, TrainingSteps
+    logger, lr, operations,
+    optimiser::{AdamWOptimiser, AdamWParams, Optimiser},
+    save::{Layout, SavedFormat},
+    wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, QuantTarget, Shape,
+    TrainingSchedule, TrainingSteps,
 };
 use trainer::Trainer;
 
 const ID: &str = "policy001";
 
 fn main() {
-    let data_preparer = preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000);
+    let data_preparer =
+        preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000);
 
     let size = 12288;
 
     let mut graph = network(size);
 
-    graph
-        .get_weights_mut("l0w")
-        .seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
-    graph
-        .get_weights_mut("l1w")
-        .seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
+    graph.get_weights_mut("l0w").seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
+    graph.get_weights_mut("l1w").seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
 
-    let optimiser_params = AdamWParams {
-        decay: 0.01,
-        beta1: 0.9,
-        beta2: 0.999,
-        min_weight: -0.99,
-        max_weight: 0.99,
-    };
+    let optimiser_params = AdamWParams { decay: 0.01, beta1: 0.9, beta2: 0.999, min_weight: -0.99, max_weight: 0.99 };
 
-    let mut trainer = Trainer {
-        optimiser: AdamWOptimiser::new(graph, optimiser_params),
-    };
+    let mut trainer = Trainer { optimiser: AdamWOptimiser::new(graph, optimiser_params) };
 
     let schedule = TrainingSchedule {
         net_id: ID.to_string(),
@@ -47,20 +40,11 @@ fn main() {
             end_superbatch: 600,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
-        lr_scheduler: lr::ExponentialDecayLR {
-            initial_lr: 0.001,
-            final_lr: 0.00001,
-            final_superbatch: 600,
-        },
+        lr_scheduler: lr::ExponentialDecayLR { initial_lr: 0.001, final_lr: 0.00001, final_superbatch: 600 },
         save_rate: 40,
     };
 
-    let settings = LocalSettings {
-        threads: 4,
-        test_set: None,
-        output_directory: "checkpoints",
-        batch_queue_size: 32,
-    };
+    let settings = LocalSettings { threads: 4, test_set: None, output_directory: "checkpoints", batch_queue_size: 32 };
 
     logger::clear_colours();
     println!("{}", logger::ansi("Beginning Training", "34;1"));

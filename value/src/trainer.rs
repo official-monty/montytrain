@@ -28,11 +28,7 @@ impl NetworkTrainer for Trainer {
 
         let inputs = &prepared.inputs;
         unsafe {
-            graph.get_input_mut("inputs").load_sparse_from_slice(
-                inputs.shape,
-                inputs.max_active,
-                &inputs.value,
-            );
+            graph.get_input_mut("inputs").load_sparse_from_slice(inputs.shape, inputs.max_active, &inputs.value);
         }
 
         let stm_mask = &prepared.stm_mask;
@@ -54,9 +50,7 @@ impl NetworkTrainer for Trainer {
         }
 
         let target = &prepared.target;
-        graph
-            .get_input_mut("target")
-            .load_dense_from_slice(target.shape, &target.value);
+        graph.get_input_mut("target").load_dense_from_slice(target.shape, &target.value);
 
         batch_size
     }

@@ -1,8 +1,14 @@
 use std::{
-    fs::File, io::{BufReader, BufWriter, Cursor}, sync::mpsc::{self, SyncSender}, time::Instant
+    fs::File,
+    io::{BufReader, BufWriter, Cursor},
+    sync::mpsc::{self, SyncSender},
+    time::Instant,
 };
 
-use bullet::{format::{BulletFormat, ChessBoard}, montyformat::{FastDeserialise, MontyValueFormat}};
+use bullet::{
+    format::{BulletFormat, ChessBoard},
+    montyformat::{FastDeserialise, MontyValueFormat},
+};
 
 #[derive(Clone, Copy, Default)]
 struct Stats {
@@ -31,14 +37,12 @@ fn main() {
 
     let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(256);
 
-    std::thread::spawn(move || {
-        loop {
-            let mut buffer = Vec::new();
-            if let Ok(()) = MontyValueFormat::deserialise_fast_into_buffer(&mut reader, &mut buffer) {
-                sender.send(buffer).unwrap();
-            } else {
-                break;
-            }
+    std::thread::spawn(move || loop {
+        let mut buffer = Vec::new();
+        if let Ok(()) = MontyValueFormat::deserialise_fast_into_buffer(&mut reader, &mut buffer) {
+            sender.send(buffer).unwrap();
+        } else {
+            break;
         }
     });
 
@@ -134,7 +138,7 @@ fn report(stats: &[Stats], timer: &Instant) {
     let mut caps = 0;
     let mut scores = 0;
     let mut games = 0;
-    
+
     for sub_stats in stats {
         positions += sub_stats.positions;
         filtered += sub_stats.filtered;

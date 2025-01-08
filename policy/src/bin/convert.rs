@@ -23,12 +23,8 @@ fn main() {
     while let Ok(game) = MontyFormat::deserialise_from(&mut reader) {
         moves.clear();
 
-        let mut value = MontyValueFormat {
-            startpos: game.startpos,
-            castling: game.castling,
-            result: game.result,
-            moves,
-        };
+        let mut value =
+            MontyValueFormat { startpos: game.startpos, castling: game.castling, result: game.result, moves };
 
         let mut stm = value.startpos.stm();
 

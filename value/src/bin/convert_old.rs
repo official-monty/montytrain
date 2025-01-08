@@ -1,4 +1,7 @@
-use std::{fs::File, io::{self, BufReader, BufWriter, Read, Write}};
+use std::{
+    fs::File,
+    io::{self, BufReader, BufWriter, Read, Write},
+};
 
 fn main() {
     let mut args = std::env::args();
@@ -17,7 +20,7 @@ fn main() {
         games += 1;
         positions += pos;
 
-        if games % (16384 * 8) == 0{
+        if games % (16384 * 8) == 0 {
             println!("Converted {games} Games, {positions} Positions");
         }
     }
