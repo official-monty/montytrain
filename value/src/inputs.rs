@@ -33,7 +33,7 @@ pub fn map_threats<F: FnMut(usize)>(pos: &Position, ntm: bool, mut f: F) {
     assert_eq!(pos.stm(), Side::WHITE);
     let side = usize::from(ntm);
     let occ = pos.boys() ^ pos.opps();
-    let hm = if pos.king_index() % 8 > 3 { 7 } else { 0 }; 
+    let hm = if pos.king_index() % 8 > 3 { 7 } else { 0 };
 
     let get_feat = |src: usize, dst: usize| map_threat_to_index(src ^ hm, dst ^ hm);
 
