@@ -1,13 +1,7 @@
-use bullet::montyformat::chess::{Position, Side};
-
 pub const MAX_THREATS: usize = 196;
 pub const NUM_THREATS: usize = OFFSETS[64];
 
-pub fn map_threat_to_index(pos: &Position, mut src: usize, mut dst: usize) -> usize {
-    let hm = if pos.king_index() % 8 > 3 { 7 } else { 0 };
-    let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
-    src ^= flip ^ hm;
-    dst ^= flip ^ hm;
+pub fn map_threat_to_index(src: usize, dst: usize) -> usize {
     let below = ALL_DESTINATIONS[src] & ((1 << dst) - 1);
     OFFSETS[src] + below.count_ones() as usize
 }

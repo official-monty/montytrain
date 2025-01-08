@@ -1,6 +1,6 @@
 use bullet::{
     default::loader::{DataLoader, MontyBinpackLoader},
-    format::ChessBoard,
+    format::{BulletFormat, ChessBoard},
     montyformat::chess::{Move, Position},
     Shape,
 };
@@ -124,7 +124,29 @@ impl PreparedData {
                             input_chunk[input_offset + j] = -1;
                         }
 
-                        assert!(j <= MAX_ACTIVE, "More inputs provided than the specified maximum!");
+                        j = 0;
+                        inputs::map_threats(&pos, false, |feat| {
+                            assert!(feat < NUM_THREATS);
+                            stm_mask_chunk[mask_offset + j] = feat as i32;
+                            j += 1;
+                        });
+
+                        if j < MAX_THREATS {
+                            stm_mask_chunk[mask_offset + j] = -1;
+                        }
+
+                        j = 0;
+                        inputs::map_threats(&pos, true, |feat| {
+                            assert!(feat < NUM_THREATS);
+                            ntm_mask_chunk[mask_offset + j] = feat as i32;
+                            j += 1;
+                        });
+
+                        if j < MAX_THREATS {
+                            ntm_mask_chunk[mask_offset + j] = -1;
+                        }
+
+                        target_chunk[target_offset + point.result_idx()] = 1.0;
                     }
                 });
             }

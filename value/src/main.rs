@@ -14,24 +14,34 @@ use bullet::{
 };
 use trainer::Trainer;
 
-const ID: &str = "policy001";
-const SIZE: usize = 1024;
+const ID: &str = "value001";
+const SIZE: usize = 512;
 const OUT_DIM: usize = 16;
 
 fn main() {
-    let data_preparer = preparer::DataPreparer::new(
-        "/home/privateclient/monty_value_training/interleaved.binpack",
-        96000,
-        4,
-        |_, _, _, _| true,
-    );
+    //let data_preparer = preparer::DataPreparer::new(
+    //    "/home/privateclient/monty_value_training/interleaved.binpack",
+    //    96000,
+    //    4,
+    //    |_, _, _, _| true,
+    //);
 
-    let size = 12288;
+    let data_preparer = preparer::DataPreparer::new("data/datagen19.binpack", 4096, 4, |_, _, _, _| true);
 
     let mut graph = network();
 
-    graph.get_weights_mut("l0w").seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
-    graph.get_weights_mut("l1w").seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
+    let post_embed_stdev = 1.0 / ((SIZE / 2) as f32).sqrt();
+
+    graph.get_weights_mut("embw").seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
+
+    graph.get_weights_mut("l1w").seed_random(0.0, post_embed_stdev, true);
+    graph.get_weights_mut("l2w").seed_random(0.0, 1.0 / 16f32.sqrt(), true);
+
+    graph.get_weights_mut("s1w").seed_random(0.0, post_embed_stdev, true);
+    graph.get_weights_mut("s2w").seed_random(0.0, 1.0 / 256f32.sqrt(), true);
+
+    graph.get_weights_mut("n1w").seed_random(0.0, post_embed_stdev, true);
+    graph.get_weights_mut("n2w").seed_random(0.0, 1.0 / 256f32.sqrt(), true);
 
     let optimiser_params = AdamWParams { decay: 0.01, beta1: 0.9, beta2: 0.999, min_weight: -0.99, max_weight: 0.99 };
 
@@ -129,8 +139,8 @@ fn embedding(builder: &mut GraphBuilder, inputs: Node) -> Node {
 fn main_subnet(builder: &mut GraphBuilder, inputs: Node) -> Node {
     let l1w = builder.create_weights("l1w", Shape::new(OUT_DIM, SIZE / 2));
     let l1b = builder.create_weights("l1b", Shape::new(OUT_DIM, 1));
-    let l2w = builder.create_weights("l2w", Shape::new(OUT_DIM * 3, OUT_DIM));
-    let l2b = builder.create_weights("l2b", Shape::new(OUT_DIM * 3, 1));
+    let l2w = builder.create_weights("l2w", Shape::new(3 * OUT_DIM, OUT_DIM));
+    let l2b = builder.create_weights("l2b", Shape::new(3 * OUT_DIM, 1));
 
     let l2 = operations::affine(builder, l1w, inputs, l1b);
     let l2 = operations::activate(builder, l2, Activation::SCReLU);
