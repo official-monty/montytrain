@@ -49,10 +49,10 @@ pub fn indices() -> [i32; NUM_MOVES] {
         let mut i = 0;
         while dsts > 0 {
             let dst = dsts.trailing_zeros() as i32;
-            let idx = 128 * dst + src as i32;
+            let idx = 64 * dst + src as i32;
 
             res[offset + i] = idx;
-            res[OFFSETS[64] + PROMOS + offset + i] = 128 * 64 + idx;
+            res[OFFSETS[64] + PROMOS + offset + i] = 64 * 64 + idx;
 
             dsts &= dsts - 1;
             i += 1;
@@ -73,11 +73,11 @@ pub fn indices() -> [i32; NUM_MOVES] {
             let src = 48 + src_file;
             let dst = 56 + dst_file;
             let pidx = 2 * src_file + dst_file;
-            let idx = 128 * dst as i32 + src as i32;
+            let idx = 64 * dst as i32 + src as i32;
 
             for promo in 0..4 {
                 res[OFFSETS[64] + 22 * promo + pidx] = idx;
-                res[2 * OFFSETS[64] + PROMOS + 22 * promo + pidx] = 128 * 64 + idx;
+                res[2 * OFFSETS[64] + PROMOS + 22 * promo + pidx] = 64 * 64 + idx;
             }
 
         }
