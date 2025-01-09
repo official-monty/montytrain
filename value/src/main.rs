@@ -4,7 +4,7 @@ mod threats;
 mod trainer;
 
 use bullet::{
-    logger, lr,
+    format, logger, lr,
     montyformat::chess::{Move, Position},
     operations,
     optimiser::{AdamWOptimiser, AdamWParams, Optimiser},
@@ -14,21 +14,21 @@ use bullet::{
 };
 use trainer::Trainer;
 
-const ID: &str = "value001";
-const SIZE: usize = 512;
+const ID: &str = "threat-mask-subnet";
+const SIZE: usize = 3072;
 const OUT_DIM: usize = 16;
 
 fn main() {
-    //let data_preparer = preparer::DataPreparer::new(
-    //    "/home/privateclient/monty_value_training/interleaved.binpack",
-    //    96000,
-    //    4,
-    //    |_, _, _, _| true,
-    //);
+    let data_preparer = preparer::DataPreparer::new(
+        "/home/privateclient/monty_value_training/interleaved.binpack",
+        96000,
+        8,
+        |_, _, _, _| true,
+    );
 
-    let data_preparer = preparer::DataPreparer::new("data/datagen19.binpack", 4096, 4, |_, _, _, _| true);
+    //let data_preparer = preparer::DataPreparer::new("data/datagen19.binpack", 4096, 4, |_, _, _, _| true);
 
-    let mut graph = network();
+    let (mut graph, output_node) = network();
 
     let post_embed_stdev = 1.0 / ((SIZE / 2) as f32).sqrt();
 
@@ -54,11 +54,11 @@ fn main() {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 600,
+            end_superbatch: 3000,
         },
-        wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
-        lr_scheduler: lr::ExponentialDecayLR { initial_lr: 0.001, final_lr: 0.00001, final_superbatch: 600 },
-        save_rate: 40,
+        wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
+        lr_scheduler: lr::ExponentialDecayLR { initial_lr: 0.001, final_lr: 0.0000001, final_superbatch: 3000 },
+        save_rate: 100,
     };
 
     let settings = LocalSettings { threads: 4, test_set: None, output_directory: "checkpoints", batch_queue_size: 32 };
@@ -75,34 +75,23 @@ fn main() {
         &settings,
         |sb, trainer, schedule, _| {
             if schedule.should_save(sb) {
-                trainer
-                    .save_weights_portion(
-                        &format!("checkpoints/{ID}-{sb}.network"),
-                        &[
-                            SavedFormat::new("embw", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("embb", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("l1w", QuantTarget::Float, Layout::Transposed),
-                            SavedFormat::new("l1b", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("l2w", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("l2b", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("s1w", QuantTarget::Float, Layout::Transposed),
-                            SavedFormat::new("s1b", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("s2w", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("s2b", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("n1w", QuantTarget::Float, Layout::Transposed),
-                            SavedFormat::new("n1b", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("n2w", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("n2b", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("ob", QuantTarget::Float, Layout::Normal),
-                        ],
-                    )
-                    .unwrap();
+                save_quantised(trainer, &format!("checkpoints/{ID}-{sb}/quantised.network"));
             }
         },
     );
+
+    for fen in [
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+        "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+        "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+    ] {
+        eval(&mut trainer, output_node, fen)
+    }
 }
 
-fn network() -> Graph {
+fn network() -> (Graph, Node) {
     let builder = &mut GraphBuilder::default();
 
     let inputs = builder.create_input("inputs", Shape::new(inputs::INPUT_SIZE, 1));
@@ -118,13 +107,15 @@ fn network() -> Graph {
     let ntm_threat_subnet = threat_subnet(builder, embedding, ntm_mask, 'n');
     let threat_subnet = operations::add(builder, stm_threat_subnet, ntm_threat_subnet);
 
+    let psqtw = builder.create_weights("psqt", Shape::new(3, inputs::INPUT_SIZE));
     let output_bias = builder.create_weights("ob", Shape::new(3, 1));
     let dot_prod = operations::submatrix_product(builder, OUT_DIM, main_subnet, threat_subnet);
-    let predicted = operations::add(builder, dot_prod, output_bias);
+    let psqt = operations::affine(builder, psqtw, inputs, output_bias);
+    let predicted = operations::add(builder, dot_prod, psqt);
     operations::softmax_crossentropy_loss(builder, predicted, target);
 
     let ctx = ExecutionContext::default();
-    builder.build(ctx)
+    (builder.build(ctx), predicted)
 }
 
 fn embedding(builder: &mut GraphBuilder, inputs: Node) -> Node {
@@ -157,4 +148,59 @@ fn threat_subnet(builder: &mut GraphBuilder, inputs: Node, masks: Node, side: ch
     let out = operations::activate(builder, out, Activation::SCReLU);
     let out = operations::mask(builder, out, masks);
     operations::affine(builder, l2w, out, l2b)
+}
+
+fn save_quantised(trainer: &Trainer, name: &str) {
+    trainer
+        .save_weights_portion(
+            name,
+            &[
+                SavedFormat::new("psqt", QuantTarget::Float, Layout::Normal),
+                SavedFormat::new("embw", QuantTarget::I16(512), Layout::Normal),
+                SavedFormat::new("embb", QuantTarget::I16(512), Layout::Normal),
+                SavedFormat::new("l1w", QuantTarget::I16(1024), Layout::Transposed),
+                SavedFormat::new("l1b", QuantTarget::I16(1024), Layout::Normal),
+                SavedFormat::new("l2w", QuantTarget::Float, Layout::Normal),
+                SavedFormat::new("l2b", QuantTarget::Float, Layout::Normal),
+                SavedFormat::new("s1w", QuantTarget::I16(1024), Layout::Transposed),
+                SavedFormat::new("s1b", QuantTarget::I16(1024), Layout::Normal),
+                SavedFormat::new("s2w", QuantTarget::Float, Layout::Normal),
+                SavedFormat::new("s2b", QuantTarget::Float, Layout::Normal),
+                SavedFormat::new("n1w", QuantTarget::I16(1024), Layout::Transposed),
+                SavedFormat::new("n1b", QuantTarget::I16(1024), Layout::Normal),
+                SavedFormat::new("n2w", QuantTarget::Float, Layout::Normal),
+                SavedFormat::new("n2b", QuantTarget::Float, Layout::Normal),
+                SavedFormat::new("ob", QuantTarget::Float, Layout::Normal),
+            ],
+        )
+        .unwrap();
+}
+
+fn eval(trainer: &mut Trainer, output_node: Node, fen: &str) {
+    let pos = format!("{fen} | 0 | 0.0").parse::<format::ChessBoard>().unwrap();
+
+    let prepared = preparer::PreparedData::new(&[pos], 1);
+
+    trainer.load_batch(&prepared);
+    trainer.optimiser.graph_mut().forward();
+
+    let eval = trainer.optimiser.graph().get_node(output_node);
+
+    let vals = eval.get_dense_vals().unwrap();
+
+    let mut win = vals[2];
+    let mut draw = vals[1];
+    let mut loss = vals[0];
+
+    let max = win.max(draw).max(loss);
+    win = (win - max).exp();
+    draw = (draw - max).exp();
+    loss = (loss - max).exp();
+    let sum = win + draw + loss;
+    win *= 100.0 / sum;
+    draw *= 100.0 / sum;
+    loss *= 100.0 / sum;
+
+    println!("FEN: {fen}");
+    println!("EVAL: W={:.2}%, D={:.2}%, L={:.2}%", win, draw, loss);
 }

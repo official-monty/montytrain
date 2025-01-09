@@ -40,7 +40,7 @@ impl NetworkTrainer for Trainer {
             );
         }
 
-        let ntm_mask = &prepared.stm_mask;
+        let ntm_mask = &prepared.ntm_mask;
         unsafe {
             graph.get_input_mut("ntm_mask").load_sparse_from_slice(
                 ntm_mask.shape,
