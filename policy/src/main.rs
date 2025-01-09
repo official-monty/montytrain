@@ -12,11 +12,11 @@ use trainer::Trainer;
 const ID: &str = "policy001";
 
 fn main() {
-    //let data_preparer = preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000);
-    let data_preparer = preparer::DataPreparer::new("data/policygen6.binpack", 4096);
+    let data_preparer = preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000);
+    //let data_preparer = preparer::DataPreparer::new("data/policygen6.binpack", 4096);
 
-    let size = 512;
-    let key_size = 16;
+    let size = 4096;
+    let key_size = 32;
 
     let mut graph = network(size, key_size);
 
