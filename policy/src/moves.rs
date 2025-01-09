@@ -39,6 +39,68 @@ macro_rules! init {
     }};
 }
 
+pub fn indices() -> [i32; NUM_MOVES] {
+    let mut res = [-1; NUM_MOVES];
+
+    for src in 0..64 {
+        let offset = OFFSETS[src];
+        let mut dsts = ALL_DESTINATIONS[src];
+
+        let mut i = 0;
+        while dsts > 0 {
+            let dst = dsts.trailing_zeros() as i32;
+            let idx = 128 * dst + src as i32;
+
+            res[offset + i] = idx;
+            res[OFFSETS[64] + PROMOS + offset + i] = 128 * 64 + idx;
+
+            dsts &= dsts - 1;
+            i += 1;
+        }
+    }
+
+    for src_file in 0..8 {
+        let mut dst_files = Vec::with_capacity(3);
+        dst_files.push(src_file);
+        if src_file > 0 {
+            dst_files.push(src_file - 1);
+        }
+        if src_file < 7 {
+            dst_files.push(src_file + 1);
+        }
+
+        for dst_file in dst_files {
+            let src = 48 + src_file;
+            let dst = 56 + dst_file;
+            let pidx = 2 * src_file + dst_file;
+            let idx = 128 * dst as i32 + src as i32;
+
+            for promo in 0..4 {
+                res[OFFSETS[64] + 22 * promo + pidx] = idx;
+                res[2 * OFFSETS[64] + PROMOS + 22 * promo + pidx] = 128 * 64 + idx;
+            }
+
+        }
+    }
+
+    res
+}
+
+pub fn promos() -> [i32; NUM_MOVES] {
+    let mut res = [-1; NUM_MOVES];
+
+    for promo in 0..4 {
+        for mv in 0..22 {
+            let pidx = 22 * promo + mv;
+            res[OFFSETS[64] + pidx] = promo as i32;
+            res[2 * OFFSETS[64] + PROMOS + pidx] = promo as i32;
+        }
+        
+    }
+
+    res
+}
+
 const OFFSETS: [usize; 65] = {
     let mut offsets = [0; 65];
 

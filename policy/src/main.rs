@@ -5,28 +5,32 @@ mod preparer;
 mod trainer;
 
 use bullet::{
-    logger, lr, operations,
-    optimiser::{AdamWOptimiser, AdamWParams, Optimiser},
-    wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, Shape,
-    TrainingSchedule, TrainingSteps,
+    logger, lr, operations, optimiser::{AdamWOptimiser, AdamWParams, Optimiser}, save::{Layout, SavedFormat}, wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, QuantTarget, Shape, TrainingSchedule, TrainingSteps
 };
 use trainer::Trainer;
 
 const ID: &str = "policy001";
 
 fn main() {
-    let data_preparer = preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000);
+    //let data_preparer = preparer::DataPreparer::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000);
+    let data_preparer = preparer::DataPreparer::new("data/policygen6.binpack", 4096);
 
-    let size = 12288;
+    let size = 512;
+    let key_size = 16;
 
-    let mut graph = network(size);
+    let mut graph = network(size, key_size);
 
-    graph
-        .get_weights_mut("l0w")
-        .seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
-    graph
-        .get_weights_mut("l1w")
-        .seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
+    unsafe {
+        graph.get_input_mut("indices").load_sparse_from_slice(Shape::new(moves::NUM_MOVES, 1), moves::NUM_MOVES, &moves::indices());
+        graph.get_input_mut("promos").load_sparse_from_slice(Shape::new(moves::NUM_MOVES, 1), moves::NUM_MOVES, &moves::promos());
+    }
+
+    graph.get_weights_mut("embw").seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
+
+    let stdev = 1.0 / ((size / 2) as f32).sqrt();
+    graph.get_weights_mut("srcw").seed_random(0.0, stdev, true);
+    graph.get_weights_mut("dstw").seed_random(0.0, stdev, true);
+    graph.get_weights_mut("promow").seed_random(0.0, stdev, true);
 
     let optimiser_params = AdamWParams {
         decay: 0.01,
@@ -80,7 +84,16 @@ fn main() {
                 trainer
                     .save_weights_portion(
                         &format!("checkpoints/{ID}-{sb}.network"),
-                        &["l0w", "l0b", "l1w", "l1b"],
+                        &[
+                            SavedFormat::new("embw", QuantTarget::Float, Layout::Normal),
+                            SavedFormat::new("embb", QuantTarget::Float, Layout::Normal),
+                            SavedFormat::new("srcw", QuantTarget::Float, Layout::Normal),
+                            SavedFormat::new("srcb", QuantTarget::Float, Layout::Normal),
+                            SavedFormat::new("dstw", QuantTarget::Float, Layout::Normal),
+                            SavedFormat::new("dstb", QuantTarget::Float, Layout::Normal),
+                            SavedFormat::new("promow", QuantTarget::Float, Layout::Normal),
+                            SavedFormat::new("promob", QuantTarget::Float, Layout::Normal),
+                        ],
                     )
                     .unwrap();
             }
@@ -88,25 +101,38 @@ fn main() {
     );
 }
 
-fn network(size: usize) -> Graph {
-    let mut builder = GraphBuilder::default();
+fn network(size: usize, key_size: usize) -> Graph {
+    let builder = &mut GraphBuilder::default();
 
     let inputs = builder.create_input("inputs", Shape::new(inputs::INPUT_SIZE, 1));
     let mask = builder.create_input("mask", Shape::new(moves::NUM_MOVES, 1));
     let dist = builder.create_input("dist", Shape::new(moves::MAX_MOVES, 1));
+    let indices = builder.create_input("indices", Shape::new(moves::NUM_MOVES, 1));
+    let promos = builder.create_input("promos", Shape::new(moves::NUM_MOVES, 1));
 
-    let l0w = builder.create_weights("l0w", Shape::new(size, inputs::INPUT_SIZE));
-    let l0b = builder.create_weights("l0b", Shape::new(size, 1));
+    let embw = builder.create_weights("embw", Shape::new(size, inputs::INPUT_SIZE));
+    let embb = builder.create_weights("embb", Shape::new(size, 1));
+    let srcw = builder.create_weights("srcw", Shape::new(key_size * 64, size / 2));
+    let srcb = builder.create_weights("srcb", Shape::new(key_size * 64, 1));
+    let dstw = builder.create_weights("dstw", Shape::new(key_size * 128, size / 2));
+    let dstb = builder.create_weights("dstb", Shape::new(key_size * 128, 1));
+    let promow = builder.create_weights("promow", Shape::new(8, size / 2));
+    let promob = builder.create_weights("promob", Shape::new(8, 1));
 
-    let l1w = builder.create_weights("l1w", Shape::new(moves::NUM_MOVES, size / 2));
-    let l1b = builder.create_weights("l1b", Shape::new(moves::NUM_MOVES, 1));
+    let embed = operations::affine(builder, embw, inputs, embb);
+    let embed = operations::activate(builder, embed, Activation::CReLU);
+    let embed = operations::pairwise_mul(builder, embed);
+    
+    let src = operations::affine(builder, srcw, embed, srcb);
+    let dst = operations::affine(builder, dstw, embed, dstb);
+    let promo_subnet = operations::affine(builder, promow, embed, promob);
 
-    let l1 = operations::affine(&mut builder, l0w, inputs, l0b);
-    let l1a = operations::activate(&mut builder, l1, Activation::CReLU);
-    let l1r = operations::pairwise_mul(&mut builder, l1a);
-    let l2 = operations::affine(&mut builder, l1w, l1r, l1b);
+    let src_dst_logits = operations::submatrix_product(builder, key_size, src, dst);
+    let src_dst_logits = operations::gather(builder, src_dst_logits, indices);
+    let promo_logits = operations::gather(builder, promo_subnet, promos);
+    let logits = operations::add(builder, src_dst_logits, promo_logits);
 
-    operations::sparse_softmax_crossentropy_loss_masked(&mut builder, mask, l2, dist);
+    operations::sparse_softmax_crossentropy_loss_masked(builder, mask, logits, dist);
 
     let ctx = ExecutionContext::default();
     builder.build(ctx)
