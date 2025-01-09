@@ -20,6 +20,8 @@ fn main() {
 
     let mut graph = network(size, key_size);
 
+    let params = graph.get_num_params() as f64 / 1_000_000.0;
+
     unsafe {
         graph.get_input_mut("indices").load_sparse_from_slice(Shape::new(moves::NUM_MOVES, 1), moves::NUM_MOVES, &moves::indices());
         graph.get_input_mut("promos").load_sparse_from_slice(Shape::new(moves::NUM_MOVES, 1), moves::NUM_MOVES, &moves::promos());
@@ -73,6 +75,7 @@ fn main() {
     println!("{}", logger::ansi("Beginning Training", "34;1"));
     schedule.display();
     settings.display();
+    println!("Number of weights      : {}", logger::ansi(format!("{:.2}m", params), 31));
 
     trainer.train_custom(
         &data_preparer,
