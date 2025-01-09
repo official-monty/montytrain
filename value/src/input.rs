@@ -6,7 +6,7 @@ use montyformat::chess::{Attacks, Castling, Piece, Position, Side};
 use crate::{consts::offsets, threats::map_piece_threat};
 
 const TOTAL_THREATS: usize = 2 * offsets::END;
-const TOTAL: usize = TOTAL_THREATS + 768;
+pub const TOTAL: usize = TOTAL_THREATS + 768;
 
 static COUNT: AtomicUsize = AtomicUsize::new(0);
 static SQRED: AtomicUsize = AtomicUsize::new(0);
@@ -29,7 +29,7 @@ pub fn print_feature_stats() {
     println!("Active Features: {mean:.3} +- {pct:.3} (95%)");
 }
 
-fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
+pub fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
     let mut bbs = pos.bbs();
     
     // flip to stm perspective
