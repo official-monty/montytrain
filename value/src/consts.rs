@@ -33,7 +33,7 @@ pub mod offsets {
     pub const PAWN: usize = 0;
     pub const KNIGHT: usize = PAWN + 6 * indices::PAWN;
     pub const BISHOP: usize = KNIGHT + 12 * indices::KNIGHT[64];
-    pub const  ROOK: usize = BISHOP + 10 * indices::BISHOP[64];
+    pub const ROOK: usize = BISHOP + 10 * indices::BISHOP[64];
     pub const QUEEN: usize = ROOK + 10 * indices::ROOK[64];
     pub const KING: usize = QUEEN + 12 * indices::QUEEN[64];
     pub const END: usize = KING + 8 * indices::KING[64];
@@ -43,11 +43,16 @@ pub mod indices {
     use super::attacks;
 
     pub const PAWN: usize = 84;
-    pub const KNIGHT: [usize; 65] = init_add_assign!(|sq, 0, 64| attacks::KNIGHT[sq].count_ones() as usize);
-    pub const BISHOP: [usize; 65] = init_add_assign!(|sq, 0, 64| attacks::BISHOP[sq].count_ones() as usize);
-    pub const  ROOK: [usize; 65] = init_add_assign!(|sq, 0, 64| attacks::ROOK[sq].count_ones() as usize);
-    pub const QUEEN: [usize; 65] = init_add_assign!(|sq, 0, 64| attacks::QUEEN[sq].count_ones() as usize);
-    pub const KING: [usize; 65] = init_add_assign!(|sq, 0, 64| attacks::KING[sq].count_ones() as usize);
+    pub const KNIGHT: [usize; 65] =
+        init_add_assign!(|sq, 0, 64| attacks::KNIGHT[sq].count_ones() as usize);
+    pub const BISHOP: [usize; 65] =
+        init_add_assign!(|sq, 0, 64| attacks::BISHOP[sq].count_ones() as usize);
+    pub const ROOK: [usize; 65] =
+        init_add_assign!(|sq, 0, 64| attacks::ROOK[sq].count_ones() as usize);
+    pub const QUEEN: [usize; 65] =
+        init_add_assign!(|sq, 0, 64| attacks::QUEEN[sq].count_ones() as usize);
+    pub const KING: [usize; 65] =
+        init_add_assign!(|sq, 0, 64| attacks::KING[sq].count_ones() as usize);
 }
 
 pub mod attacks {
@@ -78,21 +83,21 @@ pub mod attacks {
         let h2 = ((n >> 2) & 0x3f3f_3f3f_3f3f_3f3f) | ((n << 2) & 0xfcfc_fcfc_fcfc_fcfc);
         (h1 << 16) | (h1 >> 16) | (h2 << 8) | (h2 >> 8)
     });
-    
+
     pub const BISHOP: [u64; 64] = init!(|sq, 64| {
         let rank = sq / 8;
         let file = sq % 8;
         DIAGS[file + rank].swap_bytes() ^ DIAGS[7 + file - rank]
     });
-    
+
     pub const ROOK: [u64; 64] = init!(|sq, 64| {
         let rank = sq / 8;
         let file = sq % 8;
         (0xFF << (rank * 8)) ^ (A << file)
     });
-    
+
     pub const QUEEN: [u64; 64] = init!(|sq, 64| BISHOP[sq] | ROOK[sq]);
-    
+
     pub const KING: [u64; 64] = init!(|sq, 64| {
         let mut k = 1 << sq;
         k |= (k << 8) | (k >> 8);

@@ -1,4 +1,4 @@
-use montyformat::chess::{Piece, Position, Side};
+use bullet::default::formats::montyformat::chess::{Piece, Position, Side};
 
 pub const INPUT_SIZE: usize = 768 * 4;
 pub const MAX_ACTIVE: usize = 32;

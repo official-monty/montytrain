@@ -5,7 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use montyformat::{chess::Position, MontyFormat};
+use bullet::default::formats::montyformat::{chess::Position, MontyFormat};
 
 use crate::moves::MAX_MOVES;
 
@@ -31,7 +31,7 @@ impl DataLoader {
     }
 }
 
-impl bullet::loader::DataLoader<DecompressedData> for DataLoader {
+impl bullet::default::loader::DataLoader<DecompressedData> for DataLoader {
     fn data_file_paths(&self) -> &[String] {
         &self.file_path
     }
@@ -40,7 +40,12 @@ impl bullet::loader::DataLoader<DecompressedData> for DataLoader {
         None
     }
 
-    fn map_batches<F: FnMut(&[DecompressedData]) -> bool>(&self, batch_size: usize, mut f: F) {
+    fn map_batches<F: FnMut(&[DecompressedData]) -> bool>(
+        &self,
+        _: usize,
+        batch_size: usize,
+        mut f: F,
+    ) {
         let mut shuffle_buffer = Vec::new();
         shuffle_buffer.reserve_exact(self.buffer_size);
 

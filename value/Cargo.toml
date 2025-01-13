@@ -6,4 +6,3 @@ authors.workspace = true
 
 [dependencies]
 bullet = { workspace = true }
-montyformat = { workspace = true }

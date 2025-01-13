@@ -1,5 +1,7 @@
-use bullet::{loader::DataLoader as Blah, Shape};
-use montyformat::chess::Move;
+use bullet::{
+    default::{formats::montyformat::chess::Move, loader::DataLoader as Blah},
+    nn::Shape,
+};
 
 use crate::{
     inputs::{map_policy_inputs, INPUT_SIZE, MAX_ACTIVE},
@@ -32,8 +34,13 @@ impl bullet::DataPreparer for DataPreparer {
         self.loader.count_positions()
     }
 
-    fn load_and_map_batches<F: FnMut(&[Self::DataType]) -> bool>(&self, batch_size: usize, f: F) {
-        self.loader.map_batches(batch_size, f);
+    fn load_and_map_batches<F: FnMut(&[Self::DataType]) -> bool>(
+        &self,
+        start_batch: usize,
+        batch_size: usize,
+        f: F,
+    ) {
+        self.loader.map_batches(start_batch, batch_size, f);
     }
 
     fn prepare(&self, data: &[Self::DataType], threads: usize, _: f32) -> Self::PreparedData {
