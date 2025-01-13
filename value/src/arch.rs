@@ -15,7 +15,16 @@ pub fn make_trainer<T: Default + SparseInputType>(
     let inputs = T::default();
     let num_inputs = inputs.num_inputs();
 
-    let (graph, output_node) = build_network(num_inputs, l1);
+    let (mut graph, output_node) = build_network(num_inputs, l1);
+
+    let sizes = [num_inputs, l1 / 2, 16, 128];
+
+    // seed biases because huge input featureset can be weird
+    for (i, &size) in sizes.iter().enumerate() {
+        graph
+            .get_weights_mut(&format!("l{i}b"))
+            .seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
+    }
 
     Trainer::new(
         graph,
