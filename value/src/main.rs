@@ -1,7 +1,6 @@
 mod arch;
 mod consts;
 mod input;
-mod loader;
 mod threats;
 
 use arch::make_trainer;
@@ -11,14 +10,17 @@ use input::ThreatInputs;
 use bullet::{
     nn::optimiser,
     trainer::{
-        default::inputs::SparseInputType,
+        default::{
+            formats::montyformat::chess::{Move, Position},
+            inputs::SparseInputType,
+            loader,
+        },
         schedule::{lr, wdl, TrainingSchedule, TrainingSteps},
         settings::LocalSettings,
-        NetworkTrainer,
     },
 };
 
-const HIDDEN_SIZE: usize = 128;
+const HIDDEN_SIZE: usize = 3072;
 
 fn main() {
     println!("Attacks:");
@@ -30,7 +32,7 @@ fn main() {
     println!("King   : {}", indices::KING[64]);
 
     println!("Inputs: {}", ThreatInputs.num_inputs());
-    let mut trainer = make_trainer(HIDDEN_SIZE);
+    let mut trainer = make_trainer::<ThreatInputs>(HIDDEN_SIZE);
 
     let schedule = TrainingSchedule {
         net_id: "4096EXP".to_string(),
@@ -67,27 +69,19 @@ fn main() {
         batch_queue_size: 32,
     };
 
-    let data_loader = loader::BinpackLoader::new("data/datagen19.binpack", 4096, 4);
-    let _data_loader = loader::BinpackLoader::new(
+    fn filter(_: &Position, _: Move, _: i16, _: f32) -> bool {
+        true
+    }
+
+    //let data_loader = loader::MontyBinpackLoader::new("data/datagen19.binpack", 4096, 4, filter);
+    let data_loader = loader::MontyBinpackLoader::new(
         "/home/privateclient/monty_value_training/interleaved-value.binpack",
         96000,
         8,
+        filter,
     );
 
-    let (preparer, test_preparer) = trainer.training_preamble(
-        &schedule,
-        &settings,
-        &data_loader,
-        &None::<loader::BinpackLoader>,
-    );
-
-    trainer.train_custom(
-        &preparer,
-        &test_preparer,
-        &schedule,
-        &settings,
-        |_, _, _, _| {},
-    );
+    trainer.run(&schedule, &settings, &data_loader);
 
     for fen in [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",

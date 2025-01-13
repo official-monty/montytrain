@@ -1,12 +1,11 @@
-use std::{
-    str::FromStr,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use bullet::default::{
-    formats::montyformat::chess::{Attacks, Castling, Piece, Position, Side},
+    formats::{
+        bulletformat::ChessBoard,
+        montyformat::chess::{Attacks, Piece, Side},
+    },
     inputs,
-    loader::{self, GameResult},
 };
 
 use crate::{consts::offsets, threats::map_piece_threat};
@@ -35,17 +34,7 @@ pub fn print_feature_stats() {
     println!("Active Features: {mean:.3} +- {pct:.3} (95%)");
 }
 
-fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
-    let mut bbs = pos.bbs();
-
-    // flip to stm perspective
-    if pos.stm() == Side::WHITE {
-        bbs.swap(0, 1);
-        for bb in bbs.iter_mut() {
-            *bb = bb.swap_bytes()
-        }
-    }
-
+fn map_features<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
     // horiontal mirror
     let ksq = (bbs[0] & bbs[Piece::KING]).trailing_zeros();
     if ksq % 8 > 3 {
@@ -124,45 +113,10 @@ fn flip_horizontal(mut bb: u64) -> u64 {
     ((bb >> 4) & K4) | ((bb & K4) << 4)
 }
 
-#[derive(Clone, Copy)]
-pub struct DataPoint {
-    pub pos: Position,
-    pub result: f32,
-    pub score: i16,
-}
-
-impl FromStr for DataPoint {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self {
-            pos: Position::parse_fen(s, &mut Castling::default()),
-            result: 0.5,
-            score: 0,
-        })
-    }
-}
-
-impl loader::LoadableDataType for DataPoint {
-    fn score(&self) -> i16 {
-        self.score
-    }
-
-    fn result(&self) -> GameResult {
-        let res = if self.pos.stm() == 0 {
-            self.result
-        } else {
-            1.0 - self.result
-        };
-        let idx = (2.0 * res) as usize;
-        [GameResult::Loss, GameResult::Draw, GameResult::Win][idx]
-    }
-}
-
 #[derive(Clone, Copy, Default)]
 pub struct ThreatInputs;
 impl inputs::SparseInputType for ThreatInputs {
-    type RequiredDataType = DataPoint;
+    type RequiredDataType = ChessBoard;
 
     fn num_inputs(&self) -> usize {
         TOTAL
@@ -173,7 +127,16 @@ impl inputs::SparseInputType for ThreatInputs {
     }
 
     fn map_features<F: FnMut(usize, usize)>(&self, pos: &Self::RequiredDataType, mut f: F) {
-        map_features(&pos.pos, |stm| f(stm, stm));
+        let mut bbs = [0; 8];
+        for (pc, sq) in pos.into_iter() {
+            let pt = 2 + usize::from(pc & 7);
+            let c = usize::from(pc & 8 > 0);
+            let bit = 1 << sq;
+            bbs[c] |= bit;
+            bbs[pt] |= bit;
+        }
+
+        map_features(bbs, |stm| f(stm, stm));
     }
 
     fn shorthand(&self) -> String {

@@ -9,10 +9,11 @@ use bullet::{
     },
 };
 
-use crate::input::ThreatInputs;
-
-pub fn make_trainer(l1: usize) -> Trainer<AdamWOptimiser, ThreatInputs, outputs::Single> {
-    let num_inputs = ThreatInputs.num_inputs();
+pub fn make_trainer<T: Default + SparseInputType>(
+    l1: usize,
+) -> Trainer<AdamWOptimiser, T, outputs::Single> {
+    let inputs = T::default();
+    let num_inputs = inputs.num_inputs();
 
     let (graph, output_node) = build_network(num_inputs, l1);
 
@@ -20,7 +21,7 @@ pub fn make_trainer(l1: usize) -> Trainer<AdamWOptimiser, ThreatInputs, outputs:
         graph,
         output_node,
         AdamWParams::default(),
-        ThreatInputs,
+        inputs,
         outputs::Single,
         vec![
             SavedFormat::new("pst", QuantTarget::Float, Layout::Normal),
@@ -57,7 +58,7 @@ fn build_network(inputs: usize, l1: usize) -> (Graph, Node) {
     out = l1.forward(out).activate(Activation::SCReLU);
     out = l2.forward(out).activate(Activation::SCReLU);
     out = l3.forward(out);
-    out += pst * stm;
+    out = out + pst.matmul(stm);
     out.softmax_crossentropy_loss(targets);
 
     // graph, output node
