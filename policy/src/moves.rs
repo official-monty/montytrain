@@ -1,4 +1,4 @@
-use montyformat::chess::{Attacks, Move, Piece, Position, Side};
+use bullet::default::formats::montyformat::chess::{Attacks, Move, Piece, Position, Side};
 
 pub const MAX_MOVES: usize = 96;
 pub const NUM_MOVES: usize = 2 * (OFFSETS[64] + PROMOS);

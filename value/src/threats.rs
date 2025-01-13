@@ -1,8 +1,14 @@
-use montyformat::chess::Piece;
+use bullet::default::formats::montyformat::chess::Piece;
 
 use crate::consts::{attacks, indices, offsets};
 
-pub fn map_piece_threat(piece: usize, src: usize, dest: usize, target: usize, enemy: bool) -> Option<usize> {
+pub fn map_piece_threat(
+    piece: usize,
+    src: usize,
+    dest: usize,
+    target: usize,
+    enemy: bool,
+) -> Option<usize> {
     match piece {
         Piece::PAWN => map_pawn_threat(src, dest, target, enemy),
         Piece::KNIGHT => map_knight_threat(src, dest, target),
@@ -56,16 +62,22 @@ fn map_knight_threat(src: usize, dest: usize, target: usize) -> Option<usize> {
     } else {
         let idx = indices::KNIGHT[src] + below(src, dest, &attacks::KNIGHT);
         let threat = offsets::KNIGHT + target * indices::KNIGHT[64] + idx;
-    
+
         assert!(threat >= offsets::KNIGHT, "{threat}");
         assert!(threat < offsets::BISHOP, "{threat}");
-    
+
         Some(threat)
     }
 }
 
 fn map_bishop_threat(src: usize, dest: usize, target: usize) -> Option<usize> {
-    const MAP: [usize; 12] = offset_mapping([Piece::PAWN, Piece::KNIGHT, Piece::BISHOP, Piece::ROOK, Piece::KING]);
+    const MAP: [usize; 12] = offset_mapping([
+        Piece::PAWN,
+        Piece::KNIGHT,
+        Piece::BISHOP,
+        Piece::ROOK,
+        Piece::KING,
+    ]);
     if MAP[target] == usize::MAX || dest > src && target_is(target, Piece::BISHOP) {
         None
     } else {
@@ -80,7 +92,13 @@ fn map_bishop_threat(src: usize, dest: usize, target: usize) -> Option<usize> {
 }
 
 fn map_rook_threat(src: usize, dest: usize, target: usize) -> Option<usize> {
-    const MAP: [usize; 12] = offset_mapping([Piece::PAWN, Piece::KNIGHT, Piece::BISHOP, Piece::ROOK, Piece::KING]);
+    const MAP: [usize; 12] = offset_mapping([
+        Piece::PAWN,
+        Piece::KNIGHT,
+        Piece::BISHOP,
+        Piece::ROOK,
+        Piece::KING,
+    ]);
     if MAP[target] == usize::MAX || dest > src && target_is(target, Piece::ROOK) {
         None
     } else {
@@ -109,7 +127,8 @@ fn map_queen_threat(src: usize, dest: usize, target: usize) -> Option<usize> {
 }
 
 fn map_king_threat(src: usize, dest: usize, target: usize) -> Option<usize> {
-    const MAP: [usize; 12] = offset_mapping([Piece::PAWN, Piece::KNIGHT, Piece::BISHOP, Piece::ROOK]);
+    const MAP: [usize; 12] =
+        offset_mapping([Piece::PAWN, Piece::KNIGHT, Piece::BISHOP, Piece::ROOK]);
     if MAP[target] == usize::MAX {
         None
     } else {

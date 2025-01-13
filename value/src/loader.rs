@@ -7,8 +7,10 @@ use std::{
 
 use crate::input::DataPoint;
 
-use bullet::loader::DataLoader;
-use montyformat::{FastDeserialise, MontyValueFormat};
+use bullet::default::{
+    formats::montyformat::{FastDeserialise, MontyValueFormat},
+    loader::DataLoader,
+};
 
 #[derive(Clone)]
 pub struct BinpackLoader {
@@ -36,7 +38,7 @@ impl DataLoader<DataPoint> for BinpackLoader {
         None
     }
 
-    fn map_batches<F: FnMut(&[DataPoint]) -> bool>(&self, batch_size: usize, mut f: F) {
+    fn map_batches<F: FnMut(&[DataPoint]) -> bool>(&self, _: usize, batch_size: usize, mut f: F) {
         let mut shuffle_buffer = Vec::new();
         shuffle_buffer.reserve_exact(self.buffer_size);
 
@@ -46,18 +48,18 @@ impl DataLoader<DataPoint> for BinpackLoader {
         let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(256);
         let (msg_sender, msg_receiver) = mpsc::sync_channel::<bool>(1);
 
-        std::thread::spawn(move || {
-            'dataloading: loop {
-                let mut reader = BufReader::new(File::open(file_path.as_str()).unwrap());
+        std::thread::spawn(move || 'dataloading: loop {
+            let mut reader = BufReader::new(File::open(file_path.as_str()).unwrap());
 
-                let mut buffer = Vec::new();
-                while let Ok(()) = MontyValueFormat::deserialise_fast_into_buffer(&mut reader, &mut buffer) {
-                    if msg_receiver.try_recv().unwrap_or(false) || sender.send(buffer).is_err() {
-                        break 'dataloading;
-                    }
-
-                    buffer = Vec::new();
+            let mut buffer = Vec::new();
+            while let Ok(()) =
+                MontyValueFormat::deserialise_fast_into_buffer(&mut reader, &mut buffer)
+            {
+                if msg_receiver.try_recv().unwrap_or(false) || sender.send(buffer).is_err() {
+                    break 'dataloading;
                 }
+
+                buffer = Vec::new();
             }
         });
 
@@ -117,7 +119,7 @@ impl DataLoader<DataPoint> for BinpackLoader {
             }
         });
 
-        'dataloading: while let Ok(shuffle_buffer) = buffer_receiver.recv() {            
+        'dataloading: while let Ok(shuffle_buffer) = buffer_receiver.recv() {
             for batch in shuffle_buffer.chunks(batch_size) {
                 let should_break = f(batch);
 
@@ -159,7 +161,11 @@ fn parse_into_buffer(game_bytes: &[u8], buffer: &mut Vec<DataPoint>) {
     let castling = game.castling;
 
     for data in game.moves {
-        buffer.push(DataPoint { pos, result: game.result, score: data.score });
+        buffer.push(DataPoint {
+            pos,
+            result: game.result,
+            score: data.score,
+        });
 
         pos.make(data.best_move, &castling);
     }

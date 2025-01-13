@@ -1,10 +1,14 @@
 use std::{
-    fs::File, io::{BufReader, BufWriter, Cursor}, sync::mpsc::{self, SyncSender}, time::Instant
+    fs::File,
+    io::{BufReader, BufWriter, Cursor},
+    sync::mpsc::{self, SyncSender},
+    time::Instant,
 };
 
-use bullet::format::{BulletFormat, ChessBoard};
-
-use montyformat::{FastDeserialise, MontyValueFormat};
+use bullet::default::formats::{
+    bulletformat::{BulletFormat, ChessBoard},
+    montyformat::{FastDeserialise, MontyValueFormat},
+};
 
 #[derive(Clone, Copy, Default)]
 struct Stats {
@@ -33,14 +37,12 @@ fn main() {
 
     let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(256);
 
-    std::thread::spawn(move || {
-        loop {
-            let mut buffer = Vec::new();
-            if let Ok(()) = MontyValueFormat::deserialise_fast_into_buffer(&mut reader, &mut buffer) {
-                sender.send(buffer).unwrap();
-            } else {
-                break;
-            }
+    std::thread::spawn(move || loop {
+        let mut buffer = Vec::new();
+        if let Ok(()) = MontyValueFormat::deserialise_fast_into_buffer(&mut reader, &mut buffer) {
+            sender.send(buffer).unwrap();
+        } else {
+            break;
         }
     });
 
@@ -73,7 +75,12 @@ fn main() {
     report(&lock.join().unwrap(), &timer);
 }
 
-fn convert_buffer(threads: usize, sender: &SyncSender<Vec<ChessBoard>>, games: &[Vec<u8>], stats: &mut [Stats]) {
+fn convert_buffer(
+    threads: usize,
+    sender: &SyncSender<Vec<ChessBoard>>,
+    games: &[Vec<u8>],
+    stats: &mut [Stats],
+) {
     let chunk_size = games.len().div_ceil(threads);
 
     std::thread::scope(|s| {
@@ -116,7 +123,9 @@ fn convert(sender: &SyncSender<Vec<ChessBoard>>, game_bytes: &[u8], stats: &mut 
         }
 
         if write {
-            buf.push(ChessBoard::from_raw(pos.bbs(), pos.stm(), result.score, game.result).unwrap());
+            buf.push(
+                ChessBoard::from_raw(pos.bbs(), pos.stm(), result.score, game.result).unwrap(),
+            );
         } else {
             stats.filtered += 1;
         }
@@ -136,7 +145,7 @@ fn report(stats: &[Stats], timer: &Instant) {
     let mut caps = 0;
     let mut scores = 0;
     let mut games = 0;
-    
+
     for sub_stats in stats {
         positions += sub_stats.positions;
         filtered += sub_stats.filtered;
@@ -154,6 +163,9 @@ fn report(stats: &[Stats], timer: &Instant) {
     println!(" - Captures: {caps}");
     println!(" - Scores  : {scores}");
     println!("Remaining: {}", positions - filtered);
-    println!("Speed: {:.0}k/sec", (positions / 1000) as f64 / timer.elapsed().as_secs_f64());
+    println!(
+        "Speed: {:.0}k/sec",
+        (positions / 1000) as f64 / timer.elapsed().as_secs_f64()
+    );
     println!("---------------------");
 }

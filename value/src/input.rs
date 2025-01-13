@@ -1,7 +1,13 @@
-use std::{str::FromStr, sync::atomic::{AtomicUsize, Ordering}};
+use std::{
+    str::FromStr,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
-use bullet::{default::loader::{self, GameResult}, inputs};
-use montyformat::chess::{Attacks, Castling, Piece, Position, Side};
+use bullet::default::{
+    formats::montyformat::chess::{Attacks, Castling, Piece, Position, Side},
+    inputs,
+    loader::{self, GameResult},
+};
 
 use crate::{consts::offsets, threats::map_piece_threat};
 
@@ -19,7 +25,7 @@ pub fn print_feature_stats() {
     let sqred = SQRED.load(Ordering::Relaxed);
     let evals = EVALS.load(Ordering::Relaxed);
     let max = MAX.load(Ordering::Relaxed);
-    
+
     let mean = count as f64 / evals as f64;
     let var = sqred as f64 / evals as f64 - mean.powi(2);
     let pct = 1.96 * var.sqrt();
@@ -31,7 +37,7 @@ pub fn print_feature_stats() {
 
 fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
     let mut bbs = pos.bbs();
-    
+
     // flip to stm perspective
     if pos.stm() == Side::WHITE {
         bbs.swap(0, 1);
@@ -44,7 +50,7 @@ fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
     let ksq = (bbs[0] & bbs[Piece::KING]).trailing_zeros();
     if ksq % 8 > 3 {
         for bb in bbs.iter_mut() {
-            *bb= flip_horizontal(*bb);
+            *bb = flip_horizontal(*bb);
         }
     };
 
@@ -94,7 +100,7 @@ fn map_features<F: FnMut(usize)>(pos: &Position, mut f: F) {
         SQRED.fetch_add(count * count, Ordering::Relaxed);
         let evals = EVALS.fetch_add(1, Ordering::Relaxed);
         MAX.fetch_max(count, Ordering::Relaxed);
-    
+
         if (evals + 1) % (16384 * 6104) == 0 {
             print_feature_stats();
         }
@@ -143,7 +149,11 @@ impl loader::LoadableDataType for DataPoint {
     }
 
     fn result(&self) -> GameResult {
-        let res = if self.pos.stm() == 0 { self.result } else { 1.0 - self.result };
+        let res = if self.pos.stm() == 0 {
+            self.result
+        } else {
+            1.0 - self.result
+        };
         let idx = (2.0 * res) as usize;
         [GameResult::Loss, GameResult::Draw, GameResult::Win][idx]
     }

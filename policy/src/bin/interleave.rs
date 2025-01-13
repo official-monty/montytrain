@@ -3,7 +3,7 @@ use std::{
     io::{BufReader, BufWriter, Write},
 };
 
-use montyformat::{MontyFormat, FastDeserialise};
+use bullet::default::formats::montyformat::{FastDeserialise, MontyFormat};
 
 fn main() -> std::io::Result<()> {
     let folder_path = "/home/privateclient/monty_value_training/monty-policy-data"; // Specify the folder to scan
