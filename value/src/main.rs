@@ -20,14 +20,14 @@ const SIZE: usize = 2048;
 const OUT_DIM: usize = 16;
 
 fn main() {
-    let _data_preparer = preparer::DataPreparer::new(
+    let data_preparer = preparer::DataPreparer::new(
         "/home/privateclient/monty_value_training/interleaved.binpack",
         96000,
         8,
         |_, _, _, _| true,
     );
 
-    let data_preparer = preparer::DataPreparer::new("data/datagen19.binpack", 4096, 4, |_, _, _, _| true);
+    //let data_preparer = preparer::DataPreparer::new("data/datagen19.binpack", 4096, 4, |_, _, _, _| true);
 
     let (mut graph, output_node) = network();
 
