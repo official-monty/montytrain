@@ -1,4 +1,40 @@
-pub const MAX_THREATS: usize = 196;
+use bullet::montyformat::chess::{Attacks, Piece, Position, Side};
+
+pub fn map_threat_mask<F: FnMut(usize)>(pos: &Position, ntm: bool, mut f: F) {
+    assert_eq!(pos.stm(), Side::WHITE);
+    let side = usize::from(ntm);
+    let occ = pos.boys() ^ pos.opps();
+    let hm = if pos.king_index() % 8 > 3 { 7 } else { 0 };
+
+    let get_feat = |src: usize, dst: usize| map_threat_to_index(src ^ hm, dst ^ hm);
+
+    for piece in Piece::PAWN..=Piece::KING {
+        let mut bb = pos.piece(piece) & pos.piece(side);
+        while bb > 0 {
+            let src = bb.trailing_zeros() as usize;
+            bb &= bb - 1;
+
+            let mut threats = match piece {
+                Piece::PAWN => Attacks::pawn(src, side),
+                Piece::KNIGHT => Attacks::knight(src),
+                Piece::BISHOP => Attacks::bishop(src, occ),
+                Piece::ROOK => Attacks::rook(src, occ),
+                Piece::QUEEN => Attacks::queen(src, occ),
+                Piece::KING => Attacks::king(src),
+                _ => unreachable!(),
+            } & occ;
+
+            while threats > 0 {
+                let dst = threats.trailing_zeros() as usize;
+                threats &= threats - 1;
+
+                f(get_feat(src, dst));
+            }
+        }
+    }
+}
+
+pub const MAX_THREATS: usize = 128;
 pub const NUM_THREATS: usize = OFFSETS[64];
 
 pub fn map_threat_to_index(src: usize, dst: usize) -> usize {

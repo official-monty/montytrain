@@ -6,8 +6,7 @@ use bullet::{
 };
 
 use crate::{
-    inputs::{self, INPUT_SIZE, MAX_ACTIVE},
-    threats::{MAX_THREATS, NUM_THREATS},
+    threat_inputs::{self, INPUT_SIZE, MAX_ACTIVE}, threat_mask::{self, MAX_THREATS, NUM_THREATS}
 };
 
 #[derive(Clone)]
@@ -114,7 +113,7 @@ impl PreparedData {
                         let pos = Position::from_raw(bb, false, 0, 0, 0, 1);
 
                         let mut j = 0;
-                        inputs::map_inputs(&pos, |feat| {
+                        threat_inputs::map_features(&pos, |feat| {
                             assert!(feat < INPUT_SIZE);
                             input_chunk[input_offset + j] = feat as i32;
                             j += 1;
@@ -125,7 +124,7 @@ impl PreparedData {
                         }
 
                         j = 0;
-                        inputs::map_threats(&pos, false, |feat| {
+                        threat_mask::map_threat_mask(&pos, false, |feat| {
                             assert!(feat < NUM_THREATS);
                             stm_mask_chunk[mask_offset + j] = feat as i32;
                             j += 1;
@@ -136,7 +135,7 @@ impl PreparedData {
                         }
 
                         j = 0;
-                        inputs::map_threats(&pos, true, |feat| {
+                        threat_mask::map_threat_mask(&pos, true, |feat| {
                             assert!(feat < NUM_THREATS);
                             ntm_mask_chunk[mask_offset + j] = feat as i32;
                             j += 1;

@@ -1,6 +1,7 @@
-mod inputs;
+mod consts;
 mod preparer;
-mod threats;
+mod threat_mask;
+mod threat_inputs;
 mod trainer;
 
 use bullet::{
@@ -15,24 +16,24 @@ use bullet::{
 use trainer::Trainer;
 
 const ID: &str = "threat-mask-subnet";
-const SIZE: usize = 3072;
+const SIZE: usize = 2048;
 const OUT_DIM: usize = 16;
 
 fn main() {
-    let data_preparer = preparer::DataPreparer::new(
+    let _data_preparer = preparer::DataPreparer::new(
         "/home/privateclient/monty_value_training/interleaved.binpack",
         96000,
         8,
         |_, _, _, _| true,
     );
 
-    //let data_preparer = preparer::DataPreparer::new("data/datagen19.binpack", 4096, 4, |_, _, _, _| true);
+    let data_preparer = preparer::DataPreparer::new("data/datagen19.binpack", 4096, 4, |_, _, _, _| true);
 
     let (mut graph, output_node) = network();
 
     let post_embed_stdev = 1.0 / ((SIZE / 2) as f32).sqrt();
 
-    graph.get_weights_mut("embw").seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
+    graph.get_weights_mut("embw").seed_random(0.0, 1.0 / (threat_inputs::INPUT_SIZE as f32).sqrt(), true);
 
     graph.get_weights_mut("l1w").seed_random(0.0, post_embed_stdev, true);
     graph.get_weights_mut("l2w").seed_random(0.0, 1.0 / 16f32.sqrt(), true);
@@ -52,7 +53,7 @@ fn main() {
         eval_scale: 400.0,
         steps: TrainingSteps {
             batch_size: 16_384,
-            batches_per_superbatch: 6104,
+            batches_per_superbatch: 128,
             start_superbatch: 1,
             end_superbatch: 3000,
         },
@@ -94,9 +95,9 @@ fn main() {
 fn network() -> (Graph, Node) {
     let builder = &mut GraphBuilder::default();
 
-    let inputs = builder.create_input("inputs", Shape::new(inputs::INPUT_SIZE, 1));
-    let stm_mask = builder.create_input("stm_mask", Shape::new(threats::NUM_THREATS, 1));
-    let ntm_mask = builder.create_input("ntm_mask", Shape::new(threats::NUM_THREATS, 1));
+    let inputs = builder.create_input("inputs", Shape::new(threat_inputs::INPUT_SIZE, 1));
+    let stm_mask = builder.create_input("stm_mask", Shape::new(threat_mask::NUM_THREATS, 1));
+    let ntm_mask = builder.create_input("ntm_mask", Shape::new(threat_mask::NUM_THREATS, 1));
     let target = builder.create_input("target", Shape::new(3, 1));
 
     let embedding = embedding(builder, inputs);
@@ -107,7 +108,7 @@ fn network() -> (Graph, Node) {
     let ntm_threat_subnet = threat_subnet(builder, embedding, ntm_mask, 'n');
     let threat_subnet = operations::add(builder, stm_threat_subnet, ntm_threat_subnet);
 
-    let psqtw = builder.create_weights("psqt", Shape::new(3, inputs::INPUT_SIZE));
+    let psqtw = builder.create_weights("psqt", Shape::new(3, threat_inputs::INPUT_SIZE));
     let output_bias = builder.create_weights("ob", Shape::new(3, 1));
     let dot_prod = operations::submatrix_product(builder, OUT_DIM, main_subnet, threat_subnet);
     let psqt = operations::affine(builder, psqtw, inputs, output_bias);
@@ -119,7 +120,7 @@ fn network() -> (Graph, Node) {
 }
 
 fn embedding(builder: &mut GraphBuilder, inputs: Node) -> Node {
-    let l0w = builder.create_weights("embw", Shape::new(SIZE, inputs::INPUT_SIZE));
+    let l0w = builder.create_weights("embw", Shape::new(SIZE, threat_inputs::INPUT_SIZE));
     let l0b = builder.create_weights("embb", Shape::new(SIZE, 1));
 
     let l1 = operations::affine(builder, l0w, inputs, l0b);
@@ -139,9 +140,9 @@ fn main_subnet(builder: &mut GraphBuilder, inputs: Node) -> Node {
 }
 
 fn threat_subnet(builder: &mut GraphBuilder, inputs: Node, masks: Node, side: char) -> Node {
-    let l1w = builder.create_weights(&format!("{side}1w"), Shape::new(threats::NUM_THREATS, SIZE / 2));
-    let l1b = builder.create_weights(&format!("{side}1b"), Shape::new(threats::NUM_THREATS, 1));
-    let l2w = builder.create_weights(&format!("{side}2w"), Shape::new(OUT_DIM, threats::NUM_THREATS));
+    let l1w = builder.create_weights(&format!("{side}1w"), Shape::new(threat_mask::NUM_THREATS, SIZE / 2));
+    let l1b = builder.create_weights(&format!("{side}1b"), Shape::new(threat_mask::NUM_THREATS, 1));
+    let l2w = builder.create_weights(&format!("{side}2w"), Shape::new(OUT_DIM, threat_mask::NUM_THREATS));
     let l2b = builder.create_weights(&format!("{side}2b"), Shape::new(OUT_DIM, 1));
 
     let out = operations::affine(builder, l1w, inputs, l1b);
