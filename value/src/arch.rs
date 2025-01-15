@@ -33,7 +33,7 @@ pub fn make_trainer<T: Default + SparseInputType>(
         inputs,
         outputs::Single,
         vec![
-            SavedFormat::new("pst", QuantTarget::Float, Layout::Normal),
+            SavedFormat::new("pstw", QuantTarget::Float, Layout::Normal),
             SavedFormat::new("l0w", QuantTarget::I16(512), Layout::Normal),
             SavedFormat::new("l0b", QuantTarget::I16(512), Layout::Normal),
             SavedFormat::new("l1w", QuantTarget::I16(1024), Layout::Transposed),
