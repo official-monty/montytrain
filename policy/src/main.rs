@@ -1,8 +1,9 @@
-mod inputs;
 mod loader;
 mod moves;
 mod preparer;
 mod trainer;
+
+use value::input;
 
 use bullet::{
     logger, lr, operations, optimiser::{AdamWOptimiser, AdamWParams, Optimiser}, save::{Layout, SavedFormat}, wdl, Activation, ExecutionContext, Graph, GraphBuilder, LocalSettings, NetworkTrainer, QuantTarget, Shape, TrainingSchedule, TrainingSteps
@@ -27,7 +28,7 @@ fn main() {
         graph.get_input_mut("promos").load_sparse_from_slice(Shape::new(moves::NUM_MOVES, 1), moves::NUM_MOVES, &moves::promos());
     }
 
-    graph.get_weights_mut("embw").seed_random(0.0, 1.0 / (inputs::INPUT_SIZE as f32).sqrt(), true);
+    graph.get_weights_mut("embw").seed_random(0.0, 1.0 / (input::TOTAL as f32).sqrt(), true);
 
     let stdev = 1.0 / ((size / 2) as f32).sqrt();
     graph.get_weights_mut("srcw").seed_random(0.0, stdev, true);
@@ -107,13 +108,13 @@ fn main() {
 fn network(size: usize, key_size: usize) -> Graph {
     let builder = &mut GraphBuilder::default();
 
-    let inputs = builder.create_input("inputs", Shape::new(inputs::INPUT_SIZE, 1));
+    let inputs = builder.create_input("inputs", Shape::new(input::TOTAL, 1));
     let mask = builder.create_input("mask", Shape::new(moves::NUM_MOVES, 1));
     let dist = builder.create_input("dist", Shape::new(moves::MAX_MOVES, 1));
     let indices = builder.create_input("indices", Shape::new(moves::NUM_MOVES, 1));
     let promos = builder.create_input("promos", Shape::new(moves::NUM_MOVES, 1));
 
-    let embw = builder.create_weights("embw", Shape::new(size, inputs::INPUT_SIZE));
+    let embw = builder.create_weights("embw", Shape::new(size, input::TOTAL));
     let embb = builder.create_weights("embb", Shape::new(size, 1));
     let srcw = builder.create_weights("srcw", Shape::new(key_size * 64, size / 2));
     let srcb = builder.create_weights("srcb", Shape::new(key_size * 64, 1));

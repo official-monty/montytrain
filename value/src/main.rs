@@ -1,13 +1,5 @@
-mod arch;
-mod consts;
-mod input;
-mod loader;
-mod threats;
-
-use arch::make_trainer;
+use value::{arch::make_trainer, consts::indices, input::ThreatInputs, loader};
 use bullet::{inputs::SparseInputType, lr, optimiser, wdl, LocalSettings, NetworkTrainer, TrainingSchedule, TrainingSteps};
-use consts::indices;
-use input::ThreatInputs;
 
 const HIDDEN_SIZE: usize = 3072;
 

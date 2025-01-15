@@ -1,8 +1,8 @@
 use bullet::{loader::DataLoader as Blah, Shape};
 use montyformat::chess::Move;
+use value::input::{map_features, TOTAL, MAX_ACTIVE};
 
 use crate::{
-    inputs::{map_policy_inputs, INPUT_SIZE, MAX_ACTIVE},
     loader::{DataLoader, DecompressedData},
     moves::{map_move_to_index, MAX_MOVES, NUM_MOVES},
 };
@@ -68,7 +68,7 @@ impl PreparedData {
         let mut prep = Self {
             batch_size,
             inputs: SparseInput {
-                shape: Shape::new(INPUT_SIZE, batch_size),
+                shape: Shape::new(TOTAL, batch_size),
                 max_active: MAX_ACTIVE,
                 value: vec![0; MAX_ACTIVE * batch_size],
             },
@@ -97,8 +97,8 @@ impl PreparedData {
                         let dist_offset = MAX_MOVES * i;
 
                         let mut j = 0;
-                        map_policy_inputs(&point.pos, |feat| {
-                            assert!(feat < INPUT_SIZE);
+                        map_features(&point.pos, |feat| {
+                            assert!(feat < TOTAL);
                             input_chunk[input_offset + j] = feat as i32;
                             j += 1;
                         });
