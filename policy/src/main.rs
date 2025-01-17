@@ -27,10 +27,12 @@ fn main() {
         "/home/privateclient/monty_value_training/interleaved.binpack",
         96000,
     );
+    //let data_preparer = preparer::DataPreparer::new("data/policygen6.binpack", 4096);
 
-    let size = 12288;
+    let l1 = 2048;
+    let l2 = 1024;
 
-    let graph = network(size);
+    let graph = network(l1, l2);
 
     let optimiser_params = AdamWParams {
         decay: 0.01,
@@ -79,38 +81,46 @@ fn main() {
         &Option::<preparer::DataPreparer>::None,
         &schedule,
         &settings,
-        |sb, trainer, schedule, _| {
-            if schedule.should_save(sb) {
-                trainer
-                    .save_weights_portion(
-                        &format!("checkpoints/{ID}-{sb}.network"),
-                        &[
-                            SavedFormat::new("l0w", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("l0b", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("l1w", QuantTarget::Float, Layout::Transposed),
-                            SavedFormat::new("l1b", QuantTarget::Float, Layout::Normal),
-                        ],
-                    )
-                    .unwrap();
-            }
-        },
+        |_, _, _, _| {}
+        //|sb, trainer, schedule, _| {
+        //    if schedule.should_save(sb) {
+        //        save(trainer, &format!("checkpoints/{ID}-{sb}.network")).unwrap();
+        //    }
+        //},
     );
 }
 
-fn network(size: usize) -> Graph {
+fn network(l1_size: usize, l2_size: usize) -> Graph {
     let builder = NetworkBuilder::default();
 
     let inputs = builder.new_input("inputs", Shape::new(inputs::INPUT_SIZE, 1));
     let mask = builder.new_input("mask", Shape::new(moves::NUM_MOVES, 1));
     let dist = builder.new_input("dist", Shape::new(moves::MAX_MOVES, 1));
 
-    let l0 = builder.new_affine("l0", inputs::INPUT_SIZE, size);
-    let l1 = builder.new_affine("l1", size / 2, moves::NUM_MOVES);
+    let l0 = builder.new_affine("l0", inputs::INPUT_SIZE, l1_size);
+    let l1 = builder.new_affine("l1", l1_size / 2, l2_size);
+    let l2 = builder.new_affine("l2", l2_size, moves::NUM_MOVES);
 
     let mut out = l0.forward(inputs).activate(Activation::CReLU);
     out = out.pairwise_mul();
-    out = l1.forward(out);
+    out = l1.forward(out).activate(Activation::SCReLU);
+    out = l2.forward(out);
     out.masked_softmax_crossentropy_loss(dist, mask);
 
     builder.build(ExecutionContext::default())
+}
+
+#[allow(unused)]
+fn save(trainer: &Trainer, path: &str) -> std::io::Result<()> {
+    trainer.save_weights_portion(
+        path,
+        &[
+            SavedFormat::new("l0w", QuantTarget::Float, Layout::Normal),
+            SavedFormat::new("l0b", QuantTarget::Float, Layout::Normal),
+            SavedFormat::new("l1w", QuantTarget::Float, Layout::Normal),
+            SavedFormat::new("l1b", QuantTarget::Float, Layout::Normal),
+            SavedFormat::new("l2w", QuantTarget::Float, Layout::Normal),
+            SavedFormat::new("l2b", QuantTarget::Float, Layout::Normal),
+        ],
+    )
 }
