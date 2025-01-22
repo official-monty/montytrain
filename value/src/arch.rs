@@ -52,14 +52,14 @@ fn build_network(inputs: usize, l1: usize) -> (Graph, Node) {
 
     // inputs
     let stm = builder.new_input("stm", Shape::new(inputs, 1));
-    let targets = builder.new_input("targets", Shape::new(3, 1));
+    let targets = builder.new_input("targets", Shape::new(1, 1));
 
     // trainable weights
-    let pst = builder.new_weights("pst", Shape::new(3, inputs), InitSettings::Zeroed);
+    let pst = builder.new_weights("pst", Shape::new(1, inputs), InitSettings::Zeroed);
     let l0 = builder.new_affine("l0", inputs, l1);
     let l1 = builder.new_affine("l1", l1 / 2, 16);
     let l2 = builder.new_affine("l2", 16, 128);
-    let l3 = builder.new_affine("l3", 128, 3);
+    let l3 = builder.new_affine("l3", 128, 1);
 
     // inference
     let mut out = l0.forward(stm).activate(Activation::CReLU);
@@ -68,7 +68,7 @@ fn build_network(inputs: usize, l1: usize) -> (Graph, Node) {
     out = l2.forward(out).activate(Activation::SCReLU);
     out = l3.forward(out);
     out = out + pst.matmul(stm);
-    out.softmax_crossentropy_loss(targets);
+    out.mse(targets);
 
     // graph, output node
     let output_node = out.node();
