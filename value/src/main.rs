@@ -7,20 +7,20 @@ use arch::make_trainer;
 use consts::indices;
 use input::ThreatInputs;
 
-use bullet::{
-    nn::optimiser,
-    trainer::{
-        default::{
-            formats::montyformat::chess::{Move, Position},
-            inputs::SparseInputType,
-            loader,
+use bullet::trainer::{
+    default::{
+        formats::sfbinpack::{
+            chess::{piecetype::PieceType, r#move::MoveType},
+            TrainingDataEntry,
         },
-        schedule::{lr, wdl, TrainingSchedule, TrainingSteps},
-        settings::LocalSettings,
+        inputs::SparseInputType,
+        loader,
     },
+    schedule::{lr, wdl, TrainingSchedule, TrainingSteps},
+    settings::LocalSettings,
 };
 
-const HIDDEN_SIZE: usize = 3072;
+const HIDDEN_SIZE: usize = 2048;
 
 fn main() {
     println!("Attacks:");
@@ -32,7 +32,23 @@ fn main() {
     println!("King   : {}", indices::KING[64]);
 
     println!("Inputs: {}", ThreatInputs.num_inputs());
-    let mut trainer = make_trainer::<ThreatInputs>(HIDDEN_SIZE);
+    let mut trainer = make_trainer(ThreatInputs, HIDDEN_SIZE);
+
+    // loading from a SF binpack
+    let data_loader = {
+        let file_path = "data/test80-2024-02-feb-2tb7p.min-v2.v6.binpack";
+        let buffer_size_mb = 8192;
+        let threads = 4;
+        fn filter(entry: &TrainingDataEntry) -> bool {
+            entry.ply >= 16
+                && entry.score.unsigned_abs() <= 10000
+                && entry.mv.mtype() == MoveType::Normal
+                && entry.pos.piece_at(entry.mv.to).piece_type() == PieceType::None
+                && !entry.pos.is_checked(entry.pos.side_to_move())
+        }
+
+        loader::SfBinpackLoader::new(file_path, buffer_size_mb, threads, filter)
+    };
 
     let schedule = TrainingSchedule {
         net_id: "4096EXP".to_string(),
@@ -43,7 +59,7 @@ fn main() {
             start_superbatch: 1,
             end_superbatch: 3000,
         },
-        wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
+        wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
         lr_scheduler: lr::ExponentialDecayLR {
             initial_lr: 0.001,
             final_lr: 0.0000001,
@@ -52,34 +68,12 @@ fn main() {
         save_rate: 100,
     };
 
-    let optimiser_params = optimiser::AdamWParams {
-        decay: 0.01,
-        beta1: 0.9,
-        beta2: 0.999,
-        min_weight: -0.99,
-        max_weight: 0.99,
-    };
-
-    trainer.set_optimiser_params(optimiser_params);
-
     let settings = LocalSettings {
         threads: 8,
         test_set: None,
         output_directory: "checkpoints",
         batch_queue_size: 32,
     };
-
-    fn filter(_: &Position, _: Move, _: i16, _: f32) -> bool {
-        true
-    }
-
-    //let data_loader = loader::MontyBinpackLoader::new("data/datagen19.binpack", 4096, 4, filter);
-    let data_loader = loader::MontyBinpackLoader::new(
-        "/home/privateclient/monty_value_training/interleaved-value.binpack",
-        96000,
-        8,
-        filter,
-    );
 
     trainer.run(&schedule, &settings, &data_loader);
 
