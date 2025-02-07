@@ -4,8 +4,6 @@ mod input;
 mod threats;
 
 use arch::make_trainer;
-use consts::indices;
-use input::ThreatInputs;
 
 use bullet::trainer::{
     default::{
@@ -13,7 +11,7 @@ use bullet::trainer::{
             chess::{piecetype::PieceType, r#move::MoveType},
             TrainingDataEntry,
         },
-        inputs::SparseInputType,
+        inputs::ChessBucketsMirrored,
         loader,
     },
     schedule::{lr, wdl, TrainingSchedule, TrainingSteps},
@@ -23,16 +21,19 @@ use bullet::trainer::{
 const HIDDEN_SIZE: usize = 2048;
 
 fn main() {
-    println!("Attacks:");
-    println!("Pawn   : {}", indices::PAWN);
-    println!("Bishop : {}", indices::BISHOP[64]);
-    println!("Knight : {}", indices::KNIGHT[64]);
-    println!("Rook   : {}", indices::ROOK[64]);
-    println!("Queen  : {}", indices::QUEEN[64]);
-    println!("King   : {}", indices::KING[64]);
+    #[rustfmt::skip]
+    let inputs = ChessBucketsMirrored::new([
+        0, 1, 2, 3,
+        4, 5, 6, 7,
+        8, 9, 10, 11,
+        12, 13, 14, 15,
+        16, 17, 18, 19,
+        20, 21, 22, 23,
+        24, 25, 26, 27,
+        28, 29, 30, 31,
+    ]);
 
-    println!("Inputs: {}", ThreatInputs.num_inputs());
-    let mut trainer = make_trainer(ThreatInputs, HIDDEN_SIZE);
+    let mut trainer = make_trainer(inputs, HIDDEN_SIZE);
 
     // loading from a SF binpack
     let data_loader = {
