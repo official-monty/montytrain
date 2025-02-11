@@ -136,7 +136,24 @@ impl inputs::SparseInputType for ThreatInputs {
             bbs[pt] |= bit;
         }
 
-        map_features(bbs, |stm| f(stm, stm));
+        let mut stm_count = 0;
+        let mut stm_feats = [0; 128];
+        map_features(bbs, |stm| {stm_feats[stm_count] = stm; stm_count += 1;});
+
+        bbs.swap(0, 1);
+        for bb in &mut bbs {
+            *bb = bb.swap_bytes();
+        }
+
+        let mut ntm_count = 0;
+        let mut ntm_feats = [0; 128];
+        map_features(bbs, |ntm| {ntm_feats[ntm_count] = ntm; ntm_count += 1;});
+
+        assert_eq!(stm_count, ntm_count);
+
+        for (&stm, &ntm) in stm_feats.iter().zip(ntm_feats.iter()).take(stm_count) {
+            f(stm, ntm);
+        }
     }
 
     fn shorthand(&self) -> String {
