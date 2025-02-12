@@ -87,7 +87,11 @@ fn main() {
                         &[
                             SavedFormat::new("l0w", QuantTarget::Float, Layout::Normal),
                             SavedFormat::new("l0b", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("l1w", QuantTarget::Float, Layout::Transposed),
+                            SavedFormat::new(
+                                "l1w",
+                                QuantTarget::Float,
+                                Layout::Transposed(Shape::new(moves::NUM_MOVES, size / 2)),
+                            ),
                             SavedFormat::new("l1b", QuantTarget::Float, Layout::Normal),
                         ],
                     )

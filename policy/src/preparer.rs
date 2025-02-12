@@ -1,7 +1,4 @@
-use bullet::{
-    default::{formats::montyformat::chess::Move, loader::DataLoader as Blah},
-    nn::Shape,
-};
+use bullet::default::{formats::montyformat::chess::Move, loader::DataLoader as Blah};
 
 use crate::{
     inputs::{map_policy_inputs, INPUT_SIZE, MAX_ACTIVE},
@@ -49,13 +46,11 @@ impl bullet::DataPreparer for DataPreparer {
 }
 
 pub struct DenseInput {
-    pub shape: Shape,
     pub value: Vec<f32>,
 }
 
 #[derive(Clone)]
 pub struct SparseInput {
-    pub shape: Shape,
     pub value: Vec<i32>,
     pub max_active: usize,
 }
@@ -75,17 +70,14 @@ impl PreparedData {
         let mut prep = Self {
             batch_size,
             inputs: SparseInput {
-                shape: Shape::new(INPUT_SIZE, batch_size),
                 max_active: MAX_ACTIVE,
                 value: vec![0; MAX_ACTIVE * batch_size],
             },
             mask: SparseInput {
-                shape: Shape::new(NUM_MOVES, batch_size),
                 max_active: MAX_MOVES,
                 value: vec![0; MAX_MOVES * batch_size],
             },
             dist: DenseInput {
-                shape: Shape::new(MAX_MOVES, batch_size),
                 value: vec![0.0; MAX_MOVES * batch_size],
             },
         };

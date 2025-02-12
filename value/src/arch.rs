@@ -36,7 +36,11 @@ pub fn make_trainer<T: Default + SparseInputType>(
             SavedFormat::new("pst", QuantTarget::Float, Layout::Normal),
             SavedFormat::new("l0w", QuantTarget::I16(512), Layout::Normal),
             SavedFormat::new("l0b", QuantTarget::I16(512), Layout::Normal),
-            SavedFormat::new("l1w", QuantTarget::I16(1024), Layout::Transposed),
+            SavedFormat::new(
+                "l1w",
+                QuantTarget::I16(1024),
+                Layout::Transposed(Shape::new(16, l1 / 2)),
+            ),
             SavedFormat::new("l1b", QuantTarget::I16(1024), Layout::Normal),
             SavedFormat::new("l2w", QuantTarget::Float, Layout::Normal),
             SavedFormat::new("l2b", QuantTarget::Float, Layout::Normal),
