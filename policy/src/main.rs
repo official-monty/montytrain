@@ -6,7 +6,7 @@ mod trainer;
 
 use bullet::{
     nn::{
-        optimiser::{AdamWOptimiser, AdamWParams, Optimiser},
+        optimiser::{AdamWParams, Optimiser},
         Activation, ExecutionContext, Graph, NetworkBuilder, Shape,
     },
     trainer::{
@@ -41,7 +41,7 @@ fn main() {
     };
 
     let mut trainer = Trainer {
-        optimiser: AdamWOptimiser::new(graph, optimiser_params),
+        optimiser: Optimiser::new(graph, optimiser_params),
     };
 
     let schedule = TrainingSchedule {
