@@ -47,7 +47,7 @@ fn main() {
 
     // loading from a SF binpack
     let data_loader = {
-        let file_path = "data/test80-2024-02-feb-2tb7p.min-v2.v6.binpack";
+        let file_path = "../bullet/data/test80-2024-02-feb-2tb7p.min-v2.v6.binpack";
         let buffer_size_mb = 8192;
         let threads = 4;
         fn filter(entry: &TrainingDataEntry) -> bool {

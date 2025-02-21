@@ -10,8 +10,9 @@ use bullet::default::{
 
 use crate::{consts::offsets, threats::map_piece_threat};
 
+const BOARD_INPUTS: usize = 768;
 const TOTAL_THREATS: usize = 2 * offsets::END;
-const TOTAL: usize = TOTAL_THREATS + 768;
+const TOTAL: usize = TOTAL_THREATS + BOARD_INPUTS;
 
 static COUNT: AtomicUsize = AtomicUsize::new(0);
 static SQRED: AtomicUsize = AtomicUsize::new(0);
@@ -71,12 +72,12 @@ fn map_features<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
                     _ => unreachable!(),
                 } & occ;
 
-                f(TOTAL_THREATS + [0, 384][side] + 64 * (piece - 2) + sq);
+                f([0, 384][side] + 64 * (piece - 2) + sq);
                 count += 1;
                 map_bb(threats, |dest| {
                     let enemy = (1 << dest) & opps > 0;
-                    if let Some(idx) = map_piece_threat(piece, sq, dest, pieces[dest], enemy) {
-                        f(side_offset + idx);
+                    if let Some(idx) = map_piece_threat(piece, sq, dest, enemy) {
+                        f(BOARD_INPUTS + side_offset + idx);
                         count += 1;
                     }
                 });
