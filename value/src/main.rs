@@ -1,26 +1,27 @@
-mod arch;
 mod consts;
 mod input;
 mod threats;
 
-use arch::make_trainer;
 use consts::indices;
 use input::ThreatInputs;
 
 use bullet::{
-    nn::optimiser,
+    nn::{optimiser, Activation},
     trainer::{
         default::{
+            Loss,
+            TrainerBuilder,
             formats::montyformat::chess::{Move, Position},
             inputs::SparseInputType,
             loader,
+            outputs,
         },
         schedule::{lr, wdl, TrainingSchedule, TrainingSteps},
         settings::LocalSettings,
-    },
+    }
 };
 
-const HIDDEN_SIZE: usize = 3072;
+const HIDDEN_SIZE: usize = 2048;
 
 fn main() {
     println!("Attacks:");
@@ -32,7 +33,17 @@ fn main() {
     println!("King   : {}", indices::KING[64]);
 
     println!("Inputs: {}", ThreatInputs.num_inputs());
-    let mut trainer = make_trainer::<ThreatInputs>(HIDDEN_SIZE);
+
+    let mut trainer = TrainerBuilder::default()
+        .quantisations(&[255, 64])
+        .optimiser(optimiser::AdamW)
+        .loss_fn(Loss::SigmoidMSE)
+        .input(input::ThreatInputs)
+        .output_buckets(outputs::Single)
+        .feature_transformer(HIDDEN_SIZE)
+        .activate(Activation::SCReLU)
+        .add_layer(1)
+        .build();
 
     let schedule = TrainingSchedule {
         net_id: "4096EXP".to_string(),
@@ -51,16 +62,6 @@ fn main() {
         },
         save_rate: 100,
     };
-
-    let optimiser_params = optimiser::AdamWParams {
-        decay: 0.01,
-        beta1: 0.9,
-        beta2: 0.999,
-        min_weight: -0.99,
-        max_weight: 0.99,
-    };
-
-    trainer.set_optimiser_params(optimiser_params);
 
     let settings = LocalSettings {
         threads: 8,
