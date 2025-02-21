@@ -9,16 +9,16 @@ use bullet::{
     nn::{optimiser, Activation},
     trainer::{
         default::{
-            Loss,
-            TrainerBuilder,
-            formats::montyformat::chess::{Move, Position},
+            formats::sfbinpack::{
+                chess::{piecetype::PieceType, r#move::MoveType},
+                TrainingDataEntry,
+            },
             inputs::SparseInputType,
-            loader,
-            outputs,
+            loader, outputs, Loss, TrainerBuilder,
         },
         schedule::{lr, wdl, TrainingSchedule, TrainingSteps},
         settings::LocalSettings,
-    }
+    },
 };
 
 const HIDDEN_SIZE: usize = 2048;
@@ -45,6 +45,22 @@ fn main() {
         .add_layer(1)
         .build();
 
+    // loading from a SF binpack
+    let data_loader = {
+        let file_path = "data/test80-2024-02-feb-2tb7p.min-v2.v6.binpack";
+        let buffer_size_mb = 8192;
+        let threads = 4;
+        fn filter(entry: &TrainingDataEntry) -> bool {
+            entry.ply >= 16
+                && entry.score.unsigned_abs() <= 10000
+                && entry.mv.mtype() == MoveType::Normal
+                && entry.pos.piece_at(entry.mv.to).piece_type() == PieceType::None
+                && !entry.pos.is_checked(entry.pos.side_to_move())
+        }
+
+        loader::SfBinpackLoader::new(file_path, buffer_size_mb, threads, filter)
+    };
+
     let schedule = TrainingSchedule {
         net_id: "4096EXP".to_string(),
         eval_scale: 400.0,
@@ -54,7 +70,7 @@ fn main() {
             start_superbatch: 1,
             end_superbatch: 3000,
         },
-        wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
+        wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
         lr_scheduler: lr::ExponentialDecayLR {
             initial_lr: 0.001,
             final_lr: 0.0000001,
@@ -69,18 +85,6 @@ fn main() {
         output_directory: "checkpoints",
         batch_queue_size: 32,
     };
-
-    fn filter(_: &Position, _: Move, _: i16, _: f32) -> bool {
-        true
-    }
-
-    //let data_loader = loader::MontyBinpackLoader::new("data/datagen19.binpack", 4096, 4, filter);
-    let data_loader = loader::MontyBinpackLoader::new(
-        "/home/privateclient/monty_value_training/interleaved-value.binpack",
-        96000,
-        8,
-        filter,
-    );
 
     trainer.run(&schedule, &settings, &data_loader);
 

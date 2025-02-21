@@ -138,7 +138,10 @@ impl inputs::SparseInputType for ThreatInputs {
 
         let mut stm_count = 0;
         let mut stm_feats = [0; 128];
-        map_features(bbs, |stm| {stm_feats[stm_count] = stm; stm_count += 1;});
+        map_features(bbs, |stm| {
+            stm_feats[stm_count] = stm;
+            stm_count += 1;
+        });
 
         bbs.swap(0, 1);
         for bb in &mut bbs {
@@ -147,7 +150,10 @@ impl inputs::SparseInputType for ThreatInputs {
 
         let mut ntm_count = 0;
         let mut ntm_feats = [0; 128];
-        map_features(bbs, |ntm| {ntm_feats[ntm_count] = ntm; ntm_count += 1;});
+        map_features(bbs, |ntm| {
+            ntm_feats[ntm_count] = ntm;
+            ntm_count += 1;
+        });
 
         assert_eq!(stm_count, ntm_count);
 
