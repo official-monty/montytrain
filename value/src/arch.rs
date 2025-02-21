@@ -23,7 +23,8 @@ pub fn make_trainer<T: Default + SparseInputType>(
     for (i, &size) in sizes.iter().enumerate() {
         graph
             .get_weights_mut(&format!("l{i}b"))
-            .seed_random(0.0, 1.0 / (size as f32).sqrt(), true);
+            .seed_random(0.0, 1.0 / (size as f32).sqrt(), true)
+            .unwrap();
     }
 
     Trainer::new(

@@ -23,6 +23,7 @@ use trainer::Trainer;
 const ID: &str = "policy001";
 
 fn main() {
+    //let data_preparer = preparer::DataPreparer::new("data/policygen6.binpack", 4096);
     let data_preparer = preparer::DataPreparer::new(
         "/home/privateclient/monty_value_training/interleaved.binpack",
         96000,
@@ -41,7 +42,7 @@ fn main() {
     };
 
     let mut trainer = Trainer {
-        optimiser: Optimiser::new(graph, optimiser_params),
+        optimiser: Optimiser::new(graph, optimiser_params).unwrap(),
     };
 
     let schedule = TrainingSchedule {
