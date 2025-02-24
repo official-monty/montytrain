@@ -14,8 +14,9 @@ pub fn make_trainer<T: Default + SparseInputType>(
 ) -> Trainer<AdamWOptimiser, T, outputs::Single> {
     let inputs = T::default();
     let num_inputs = inputs.num_inputs();
+    let nnz = inputs.max_active();
 
-    let (mut graph, output_node) = build_network(num_inputs, l1);
+    let (mut graph, output_node) = build_network(num_inputs, nnz, l1);
 
     let sizes = [num_inputs, l1 / 2, 16, 128];
 
@@ -52,12 +53,12 @@ pub fn make_trainer<T: Default + SparseInputType>(
     )
 }
 
-fn build_network(inputs: usize, l1: usize) -> (Graph, Node) {
+fn build_network(inputs: usize, nnz: usize, l1: usize) -> (Graph, Node) {
     let builder = NetworkBuilder::default();
 
     // inputs
-    let stm = builder.new_input("stm", Shape::new(inputs, 1));
-    let targets = builder.new_input("targets", Shape::new(3, 1));
+    let stm = builder.new_sparse_input("stm", Shape::new(inputs, 1), nnz);
+    let targets = builder.new_dense_input("targets", Shape::new(3, 1));
 
     // trainable weights
     let pst = builder.new_weights("pst", Shape::new(3, inputs), InitSettings::Zeroed);
