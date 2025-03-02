@@ -23,13 +23,13 @@ use trainer::Trainer;
 const ID: &str = "policy001";
 
 fn main() {
-    //let data_preparer = preparer::DataPreparer::new("data/policygen6.binpack", 4096);
-    let data_preparer = preparer::DataPreparer::new(
+    let data_preparer = preparer::DataPreparer::new("data/policygen6.binpack", 4096);
+    let _data_preparer = preparer::DataPreparer::new(
         "/home/privateclient/monty_value_training/interleaved.binpack",
         96000,
     );
 
-    let size = 12288;
+    let size = 128;
 
     let graph = network(size);
 
@@ -105,15 +105,15 @@ fn main() {
 fn network(size: usize) -> Graph {
     let builder = NetworkBuilder::default();
 
-    let inputs = builder.new_sparse_input("inputs", Shape::new(inputs::INPUT_SIZE, 1), inputs::MAX_ACTIVE);
+    let stm = builder.new_sparse_input("stm", Shape::new(inputs::INPUT_SIZE, 1), inputs::MAX_ACTIVE);
+    let ntm = builder.new_sparse_input("ntm", Shape::new(inputs::INPUT_SIZE, 1), inputs::MAX_ACTIVE);
     let mask = builder.new_sparse_input("mask", Shape::new(moves::NUM_MOVES, 1), moves::MAX_MOVES);
     let dist = builder.new_dense_input("dist", Shape::new(moves::MAX_MOVES, 1));
 
     let l0 = builder.new_affine("l0", inputs::INPUT_SIZE, size);
-    let l1 = builder.new_affine("l1", size / 2, moves::NUM_MOVES);
+    let l1 = builder.new_affine("l1", 2 * size, moves::NUM_MOVES);
 
-    let mut out = l0.forward(inputs).activate(Activation::CReLU);
-    out = out.pairwise_mul();
+    let mut out = l0.forward_sparse_dual_with_activation(stm, ntm, Activation::CReLU);
     out = l1.forward(out);
     out.masked_softmax_crossentropy_loss(dist, mask);
 

@@ -26,10 +26,18 @@ impl NetworkTrainer for Trainer {
 
         let graph = &mut self.optimiser.graph;
 
-        let inputs = &prepared.inputs;
+        let inputs = &prepared.stm;
         unsafe {
             graph
-                .get_input_mut("inputs")
+                .get_input_mut("stm")
+                .load_sparse_from_slice(inputs.max_active, Some(batch_size), &inputs.value)
+                .unwrap();
+        }
+
+        let inputs = &prepared.stm;
+        unsafe {
+            graph
+                .get_input_mut("ntm")
                 .load_sparse_from_slice(inputs.max_active, Some(batch_size), &inputs.value)
                 .unwrap();
         }

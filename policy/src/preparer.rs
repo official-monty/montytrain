@@ -57,7 +57,8 @@ pub struct SparseInput {
 
 pub struct PreparedData {
     pub batch_size: usize,
-    pub inputs: SparseInput,
+    pub stm: SparseInput,
+    pub ntm: SparseInput,
     pub mask: SparseInput,
     pub dist: DenseInput,
 }
@@ -69,7 +70,11 @@ impl PreparedData {
 
         let mut prep = Self {
             batch_size,
-            inputs: SparseInput {
+            stm: SparseInput {
+                max_active: MAX_ACTIVE,
+                value: vec![0; MAX_ACTIVE * batch_size],
+            },
+            ntm: SparseInput {
                 max_active: MAX_ACTIVE,
                 value: vec![0; MAX_ACTIVE * batch_size],
             },
@@ -83,9 +88,10 @@ impl PreparedData {
         };
 
         std::thread::scope(|s| {
-            for (((data_chunk, input_chunk), mask_chunk), dist_chunk) in data
+            for ((((data_chunk, stm_chunk), ntm_chunk), mask_chunk), dist_chunk) in data
                 .chunks(chunk_size)
-                .zip(prep.inputs.value.chunks_mut(MAX_ACTIVE * chunk_size))
+                .zip(prep.stm.value.chunks_mut(MAX_ACTIVE * chunk_size))
+                .zip(prep.ntm.value.chunks_mut(MAX_ACTIVE * chunk_size))
                 .zip(prep.mask.value.chunks_mut(MAX_MOVES * chunk_size))
                 .zip(prep.dist.value.chunks_mut(MAX_MOVES * chunk_size))
             {
@@ -96,15 +102,30 @@ impl PreparedData {
                         let dist_offset = MAX_MOVES * i;
 
                         let mut j = 0;
-                        map_policy_inputs(&point.pos, |feat| {
+                        map_policy_inputs(&point.pos, point.pos.stm(), |feat| {
                             assert!(feat < INPUT_SIZE);
-                            input_chunk[input_offset + j] = feat as i32;
+                            stm_chunk[input_offset + j] = feat as i32;
                             j += 1;
                         });
 
-                        if j < MAX_ACTIVE {
-                            input_chunk[input_offset + j] = -1;
+                        for j in j..MAX_ACTIVE {
+                            stm_chunk[input_offset + j] = -1;
                         }
+
+                        let j1 = j;
+
+                        let mut j = 0;
+                        map_policy_inputs(&point.pos, point.pos.stm() ^ 1, |feat| {
+                            assert!(feat < INPUT_SIZE);
+                            ntm_chunk[input_offset + j] = feat as i32;
+                            j += 1;
+                        });
+
+                        for j in j..MAX_ACTIVE {
+                            ntm_chunk[input_offset + j] = -1;
+                        }
+
+                        assert_eq!(j, j1);
 
                         assert!(
                             j <= MAX_ACTIVE,
