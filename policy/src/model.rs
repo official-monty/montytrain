@@ -25,7 +25,6 @@ pub fn make(device: CudaDevice, hl: usize) -> (Graph<CudaDevice>, NodeId) {
     let buckets = builder.new_sparse_input("buckets", Shape::new(NUM_MOVE_INDICES, MAX_MOVES), MAX_MOVES);
 
     let l0 = builder.new_affine("l0", INPUT_SIZE, hl);
-    let mw = builder.new_weights("mw", Shape::new(hl, INPUT_SIZE), InitSettings::Normal { mean: 0.0, stdev: 0.01 });
     let l1w =
         builder.new_weights("l1w", Shape::new(hl, NUM_MOVE_INDICES), InitSettings::Normal { mean: 0.0, stdev: 0.01 });
 
@@ -33,7 +32,7 @@ pub fn make(device: CudaDevice, hl: usize) -> (Graph<CudaDevice>, NodeId) {
     let ones = builder.new_constant(Shape::new(1, MAX_MOVES), &[1.0; MAX_MOVES]);
 
     let logits = builder.apply(diff::ApplyMoveDiffAndDot {
-        weights: mw.annotated_node(),
+        weights: l0.weights.annotated_node(),
         moves: moves.annotated_node(),
         hl: base_hl.annotated_node(),
         out_weights: l1w.annotated_node(),
@@ -54,7 +53,7 @@ pub fn save_quantised(graph: &Graph<CudaDevice>, path: &str) -> std::io::Result<
 
     let mut quant = Vec::new();
 
-    for id in ["l0w", "mw", "l0b", "l1w"] {
+    for id in ["l0w", "l0b", "l1w"] {
         let vals = graph.get_weights(id).get_dense_vals().unwrap();
 
         for x in vals {
