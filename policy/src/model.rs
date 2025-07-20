@@ -29,7 +29,7 @@ pub fn make(device: CudaDevice, hl: usize) -> (Graph<CudaDevice>, NodeId) {
     let l1w =
         builder.new_weights("l1w", Shape::new(hl, NUM_MOVE_INDICES), InitSettings::Normal { mean: 0.0, stdev: 0.01 });
 
-    let base_hl = l0.forward(inputs);
+    let base_hl = l0.forward(inputs).crelu();
     let ones = builder.new_constant(Shape::new(1, MAX_MOVES), &[1.0; MAX_MOVES]);
 
     let logits = builder.apply(diff::ApplyMoveDiffAndDot {
