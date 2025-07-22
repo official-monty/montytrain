@@ -33,7 +33,7 @@ pub fn make(device: CudaDevice, src_hl: usize, dst_hl: usize, fact_hl: usize, di
     let attn = subnets("src", 64, src_hl).gemm(true, subnets("dst", 128, dst_hl), false);
     
     let fact0 = builder.new_affine("fact0", INPUT_SIZE, fact_hl);
-    let fact1 = builder.new_affine("fact0", fact_hl / 2, 1880 * 2);
+    let fact1 = builder.new_affine("fact1", fact_hl / 2, 1880 * 2);
 
     let facthl = fact0.forward(inputs).crelu().pairwise_mul();
     let fact = fact1.forward(facthl);
@@ -86,7 +86,7 @@ pub fn save_quantised(graph: &Graph<CudaDevice>, path: &str) -> std::io::Result<
 
     let mut quant = Vec::new();
 
-    for id in ["src0w", "src0b", "dst0w", "dst0b"] {
+    for id in ["src0w", "src0b", "dst0w", "dst0b", "fact0w", "fact0b"] {
         let vals = graph.get_weights(id).get_dense_vals().unwrap();
 
         for x in vals {
@@ -96,7 +96,7 @@ pub fn save_quantised(graph: &Graph<CudaDevice>, path: &str) -> std::io::Result<
         }
     }
 
-    for id in ["src1w", "dst1w"] {
+    for id in ["src1w", "dst1w", "fact1w"] {
         let vals = graph.get_weights(id).get_dense_vals().unwrap();
 
         for x in vals {
@@ -106,7 +106,7 @@ pub fn save_quantised(graph: &Graph<CudaDevice>, path: &str) -> std::io::Result<
         }
     }
 
-    for id in ["src1b", "dst1b"] {
+    for id in ["src1b", "dst1b", "fact1b"] {
         let vals = graph.get_weights(id).get_dense_vals().unwrap();
 
         for x in vals {
