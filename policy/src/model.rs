@@ -15,23 +15,30 @@ use crate::{
     inputs::{INPUT_SIZE, MAX_ACTIVE_BASE, MAX_MOVES},
 };
 
-pub fn make(device: CudaDevice, hl: usize, dim: usize) -> (Graph<CudaDevice>, NodeId) {
+pub fn make(device: CudaDevice, src_hl: usize, dst_hl: usize, fact_hl: usize, dim: usize) -> (Graph<CudaDevice>, NodeId) {
     let builder = GraphBuilder::default();
 
     let inputs = builder.new_sparse_input("inputs", Shape::new(INPUT_SIZE, 1), MAX_ACTIVE_BASE);
     let targets = builder.new_dense_input("targets", Shape::new(MAX_MOVES, 1));
     let moves = builder.new_sparse_input("moves", Shape::new(64, 128), MAX_MOVES);
+    let moves2 = builder.new_sparse_input("moves2", Shape::new(1880 * 2, 1), MAX_MOVES);
 
-    let subnets = |name: &str, num| {
+    let subnets = |name: &str, num, hl| {
         let l0 = builder.new_affine(&format!("{name}0"), INPUT_SIZE, hl);
         let l1 = builder.new_affine(&format!("{name}1"), hl / 2, num * dim);
         let hl = l0.forward(inputs).crelu().pairwise_mul();
         l1.forward(hl).reshape(Shape::new(dim, num))
     };
 
-    let attn = subnets("src", 64).gemm(true, subnets("dst", 128), false);
+    let attn = subnets("src", 64, src_hl).gemm(true, subnets("dst", 128, dst_hl), false);
+    
+    let fact0 = builder.new_affine("fact0", INPUT_SIZE, fact_hl);
+    let fact1 = builder.new_affine("fact0", fact_hl / 2, 1880 * 2);
 
-    let logits = builder.apply(grab::Grab::new(attn, moves));
+    let facthl = fact0.forward(inputs).crelu().pairwise_mul();
+    let fact = fact1.forward(facthl);
+
+    let logits = builder.apply(grab::Grab::new(attn, moves)) + builder.apply(grab::Grab::new(fact, moves2));
 
     let ones = builder.new_constant(Shape::new(1, MAX_MOVES), &[1.0; MAX_MOVES]);
     let loss = logits.softmax_crossentropy_loss(targets);

@@ -38,13 +38,15 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
 
     let mut inputs = vec![0; MAX_ACTIVE_BASE * batch_size];
     let mut moves = vec![0; MAX_MOVES * batch_size];
+    let mut moves2 = vec![0; MAX_MOVES * batch_size];
     let mut dist = vec![0.0; MAX_MOVES * batch_size];
 
     std::thread::scope(|s| {
-        for (((data_chunk, input_chunk), moves_chunk), dist_chunk) in data
+        for ((((data_chunk, input_chunk), moves_chunk), moves2_chunk), dist_chunk) in data
             .chunks(chunk_size)
             .zip(inputs.chunks_mut(MAX_ACTIVE_BASE * chunk_size))
             .zip(moves.chunks_mut(MAX_MOVES * chunk_size))
+            .zip(moves2.chunks_mut(MAX_MOVES * chunk_size))
             .zip(dist.chunks_mut(MAX_MOVES * chunk_size))
         {
             s.spawn(move || {
@@ -75,6 +77,7 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
 
                         let mov = Move::from(mov);
                         moves_chunk[moves_offset + distinct] = inputs::map_move_to_index(pos, mov);
+                        moves2_chunk[moves_offset + distinct] = inputs::map_move_to_index2(pos, mov) as i32;
                         dist_chunk[moves_offset + distinct] = f32::from(visits);
                         distinct += 1;
                     }
@@ -104,6 +107,11 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
         prep.inputs.insert(
             "moves".to_string(),
             HostMatrix::Sparse(HostSparseMatrix::new(moves, batch_size, Shape::new(64, 128), MAX_MOVES)),
+        );
+
+        prep.inputs.insert(
+            "moves2".to_string(),
+            HostMatrix::Sparse(HostSparseMatrix::new(moves2, batch_size, Shape::new(1880 * 2, 1), MAX_MOVES)),
         );
     }
 

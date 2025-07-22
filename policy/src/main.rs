@@ -17,7 +17,7 @@ use crate::data::MontyDataLoader;
 fn main() {
     let device = CudaDevice::new(0).unwrap();
 
-    let (graph, node) = model::make(device, 2048, 32);
+    let (graph, node) = model::make(device, 2048, 2048, 1024, 32);
 
     let optimiser = Optimiser::<_, AdamW<_>>::new(graph, Default::default()).unwrap();
 
