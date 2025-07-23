@@ -44,30 +44,16 @@ fn main() {
             end_superbatch: 3000,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
-        lr_scheduler: lr::ExponentialDecayLR {
-            initial_lr: 0.001,
-            final_lr: 0.0000001,
-            final_superbatch: 3000,
-        },
+        lr_scheduler: lr::ExponentialDecayLR { initial_lr: 0.001, final_lr: 0.0000001, final_superbatch: 3000 },
         save_rate: 100,
     };
 
-    let optimiser_params = optimiser::AdamWParams {
-        decay: 0.01,
-        beta1: 0.9,
-        beta2: 0.999,
-        min_weight: -0.99,
-        max_weight: 0.99,
-    };
+    let optimiser_params =
+        optimiser::AdamWParams { decay: 0.01, beta1: 0.9, beta2: 0.999, min_weight: -0.99, max_weight: 0.99 };
 
     trainer.set_optimiser_params(optimiser_params);
 
-    let settings = LocalSettings {
-        threads: 8,
-        test_set: None,
-        output_directory: "checkpoints",
-        batch_queue_size: 32,
-    };
+    let settings = LocalSettings { threads: 8, test_set: None, output_directory: "checkpoints", batch_queue_size: 32 };
 
     fn filter(_: &Position, _: Move, _: i16, _: f32) -> bool {
         true

@@ -9,9 +9,7 @@ use bullet::{
     },
 };
 
-pub fn make_trainer<T: Default + SparseInputType>(
-    l1: usize,
-) -> Trainer<AdamWOptimiser, T, outputs::Single> {
+pub fn make_trainer<T: Default + SparseInputType>(l1: usize) -> Trainer<AdamWOptimiser, T, outputs::Single> {
     let inputs = T::default();
     let num_inputs = inputs.num_inputs();
     let nnz = inputs.max_active();
@@ -22,10 +20,7 @@ pub fn make_trainer<T: Default + SparseInputType>(
 
     // seed biases because huge input featureset can be weird
     for (i, &size) in sizes.iter().enumerate() {
-        graph
-            .get_weights_mut(&format!("l{i}b"))
-            .seed_random(0.0, 1.0 / (size as f32).sqrt(), true)
-            .unwrap();
+        graph.get_weights_mut(&format!("l{i}b")).seed_random(0.0, 1.0 / (size as f32).sqrt(), true).unwrap();
     }
 
     Trainer::new(
@@ -38,11 +33,7 @@ pub fn make_trainer<T: Default + SparseInputType>(
             SavedFormat::new("pst", QuantTarget::Float, Layout::Normal),
             SavedFormat::new("l0w", QuantTarget::I16(512), Layout::Normal),
             SavedFormat::new("l0b", QuantTarget::I16(512), Layout::Normal),
-            SavedFormat::new(
-                "l1w",
-                QuantTarget::I16(1024),
-                Layout::Transposed(Shape::new(16, l1 / 2)),
-            ),
+            SavedFormat::new("l1w", QuantTarget::I16(1024), Layout::Transposed(Shape::new(16, l1 / 2))),
             SavedFormat::new("l1b", QuantTarget::I16(1024), Layout::Normal),
             SavedFormat::new("l2w", QuantTarget::Float, Layout::Normal),
             SavedFormat::new("l2b", QuantTarget::Float, Layout::Normal),

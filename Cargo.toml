@@ -7,11 +7,8 @@ authors = ["Jamie Whiting"]
 resolver = "2"
 members = ["policy", "value"]
 
-[profile.release]
-lto = true
-codegen-units = 1
-strip = true
-panic = "abort"
-
-[workspace.dependencies]
-bullet = { package = "bullet_lib", git = 'https://github.com/jw1912/bullet' }
+#[profile.release]
+#lto = true
+#codegen-units = 1
+#strip = true
+#panic = "abort"
