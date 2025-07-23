@@ -1,4 +1,4 @@
-mod grab;
+mod select_affine;
 
 use bullet_core::{
     graph::{
@@ -26,9 +26,8 @@ pub fn make(device: CudaDevice, hl: usize) -> (Graph<CudaDevice>, NodeId) {
     let l1 = builder.new_affine("l1", hl / 2, NUM_MOVES_INDICES);
 
     let hl = l0.forward(inputs).crelu().pairwise_mul();
-    let outputs = l1.forward(hl);
 
-    let logits = builder.apply(grab::Grab::new(outputs, moves));
+    let logits = builder.apply(select_affine::SelectAffine::new(l1, hl, moves));
 
     let ones = builder.new_constant(Shape::new(1, MAX_MOVES), &[1.0; MAX_MOVES]);
     let loss = logits.softmax_crossentropy_loss(targets);
