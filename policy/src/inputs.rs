@@ -203,7 +203,7 @@ const OFFSETS: [[usize; 65]; 6] = {
 };
 
 const DESTINATIONS: [[u64; 6]; 64] =
-    init!(|sq, 64| { [PAWN[sq], KNIGHT[sq], bishop(sq), rook(sq), queen(sq), KING[sq]] });
+    init!(|sq, 64| [PAWN[sq], KNIGHT[sq], bishop(sq), rook(sq), queen(sq), KING[sq]]);
 
 const A: u64 = 0x0101_0101_0101_0101;
 const H: u64 = A << 7;

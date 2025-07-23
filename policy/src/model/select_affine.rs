@@ -141,7 +141,7 @@ impl GraphInstruction<CudaDevice> for SelectAffineFwd {
             let func = device
                 .get_custom_func_or_rtc("select_affine_fwd", || include_str!("select_affine_fwd.cu").to_string())?;
 
-            let threads = (single_size / 4).min(1024) as u32;
+            let threads = (single_size / 4).min(512) as u32;
 
             assert!(threads.is_power_of_two(), "hl size must be a power of 2");
 
