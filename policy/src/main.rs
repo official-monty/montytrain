@@ -15,7 +15,7 @@ use bullet_core::{
 };
 use bullet_cuda_backend::CudaDevice;
 
-use crate::data::MontyDataLoader;
+use data::MontyDataLoader;
 
 fn main() {
     let hl = 12288;
@@ -35,7 +35,7 @@ fn main() {
     let initial_lr = 0.001;
     let final_lr = 0.00001;
 
-    let steps = TrainingSteps { batch_size: 16384, batches_per_superbatch: 6104, start_superbatch: 1, end_superbatch };
+    let steps = TrainingSteps { batch_size: 16384, batches_per_superbatch: 6144, start_superbatch: 1, end_superbatch };
 
     let schedule = TrainingSchedule {
         steps,
