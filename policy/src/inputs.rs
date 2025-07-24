@@ -3,9 +3,9 @@ use montyformat::chess::{Attacks, Flag, Move, Piece, Position, Side};
 pub const MAX_MOVES: usize = 64;
 pub const INPUT_SIZE: usize = 768 * 4;
 pub const MAX_ACTIVE_BASE: usize = 32;
-pub const NUM_MOVES_INDICES: usize = 2 * FROM_TO;
+pub const NUM_MOVES_INDICES: usize = 7 * 2 * FROM_TO;
 
-const FROM_TO: usize = OFFSETS[5][64] + PROMOS + 2 + 8;
+pub const FROM_TO: usize = OFFSETS[5][64] + PROMOS + 2 + 8;
 
 pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
     let hm = if pos.king_index() % 8 > 3 { 7 } else { 0 };
@@ -15,6 +15,13 @@ pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
     let dst = usize::from(mov.to() ^ flip);
 
     let good_see = usize::from(see(pos, mov, -108));
+    let cap = if mov.is_en_passant() {
+        1
+    } else if mov.is_capture() {
+        pos.get_pc(1 << mov.to()) - 1
+    } else {
+        0
+    };
 
     let idx = if mov.is_promo() {
         let ffile = src % 8;
@@ -35,7 +42,7 @@ pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
         OFFSETS[pc][src] + below.count_ones() as usize
     };
 
-    FROM_TO * good_see + idx
+    FROM_TO * (7 * good_see + cap) + idx
 }
 
 pub fn map_base_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
