@@ -138,12 +138,14 @@ impl GraphInstruction<CudaDevice> for SelectAffineFwd {
         let device = input.buf.device.clone();
 
         unsafe {
-            let func = device
-                .get_custom_func_or_rtc("select_affine_fwd", || include_str!("select_affine_fwd.cu").to_string())?;
-
-            let threads = (single_size / 4).min(1024) as u32;
+            let threads = (single_size / 4).min(512) as u32;
 
             assert!(threads.is_power_of_two(), "hl size must be a power of 2");
+
+            let func = device.get_custom_func_or_rtc("select_affine_fwd", || {
+                let kernel = include_str!("select_affine/fwd.cu");
+                format!("#define THREADS {threads}\n{kernel}")
+            })?;
 
             let batch_size = batch_size.unwrap_or(1) as u32;
             let grid_dim = (64, batch_size, 1);
@@ -223,11 +225,12 @@ impl GraphInstruction<CudaDevice> for SelectAffineBwd {
 
         unsafe {
             let func = device
-                .get_custom_func_or_rtc("select_affine_bwd", || include_str!("select_affine_bwd.cu").to_string())?;
+                .get_custom_func_or_rtc("select_affine_bwd", || include_str!("select_affine/bwd.cu").to_string())?;
 
-            let threads = single_size.min(1024) as u32;
+            let threads = (single_size / 4).min(1024) as u32;
             let batch_size = batch_size.unwrap_or(1) as u32;
-            let cfg = LaunchConfig { grid_dim: (64, batch_size, 1), block_dim: (threads, 1, 1), shared_mem_bytes: 0 };
+            let grid_dim = (64, batch_size, 1);
+            let cfg = LaunchConfig { grid_dim, block_dim: (threads, 1, 1), shared_mem_bytes: 16 * threads };
 
             device
                 .stream()

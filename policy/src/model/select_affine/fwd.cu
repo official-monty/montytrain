@@ -1,3 +1,17 @@
+#ifndef THREADS
+#define THREADS 512
+#endif
+
+__device__ void warpReduce(volatile float* sdata, int tid)
+{
+    sdata[tid] += sdata[tid + 32];
+    sdata[tid] += sdata[tid + 16];
+    sdata[tid] += sdata[tid + 8];
+    sdata[tid] += sdata[tid + 4];
+    sdata[tid] += sdata[tid + 2];
+    sdata[tid] += sdata[tid + 1];
+}
+
 extern "C" __global__ void kernel(
     const int in_size,
     const int batch_size,
@@ -31,9 +45,20 @@ extern "C" __global__ void kernel(
         sdata[tid] = local;
         __syncthreads();
 
-        for(unsigned int s = blockDim.x / 2; s > 0; s >>= 1){
+        if (THREADS >= 1024) { if (tid < 512) sdata[tid] += sdata[tid + 512]; __syncthreads(); }
+        if (THREADS >= 512) { if (tid < 256) sdata[tid] += sdata[tid + 256]; __syncthreads(); }
+        if (THREADS >= 256) { if (tid < 128) sdata[tid] += sdata[tid + 128]; __syncthreads(); }
+        if (THREADS >= 128) { if (tid < 64) sdata[tid] += sdata[tid + 64]; __syncthreads(); }
+
+        for(unsigned int s = blockDim.x / 2; s > 32; s >>= 1)
+        {
             if (tid < s) sdata[tid] += sdata[tid + s];
             __syncthreads();
+        }
+
+        if (tid < 32)
+        {
+            warpReduce(sdata, tid);
         }
 
         if (tid == 0)
