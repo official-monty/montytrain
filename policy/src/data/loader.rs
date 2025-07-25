@@ -8,7 +8,7 @@ use bullet_core::{
 use montyformat::chess::Move;
 
 use super::reader::{DataReader, DecompressedData};
-use crate::inputs::{self, INPUT_SIZE, MAX_ACTIVE_BASE, MAX_MOVES, NUM_MOVES_INDICES};
+use crate::{inputs::{self, INPUT_SIZE, MAX_ACTIVE_BASE, MAX_MOVES, NUM_MOVES_INDICES}, see};
 
 #[derive(Clone)]
 pub struct MontyDataLoader {
@@ -37,13 +37,15 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
     let chunk_size = batch_size.div_ceil(threads);
 
     let mut inputs = vec![0; MAX_ACTIVE_BASE * batch_size];
+    let mut see_inputs = vec![0; MAX_ACTIVE_BASE * 64 * batch_size];
     let mut moves = vec![0; MAX_MOVES * batch_size];
     let mut dist = vec![0.0; MAX_MOVES * batch_size];
 
     std::thread::scope(|s| {
-        for (((data_chunk, input_chunk), moves_chunk), dist_chunk) in data
+        for ((((data_chunk, input_chunk), see_input_chunk), moves_chunk), dist_chunk) in data
             .chunks(chunk_size)
             .zip(inputs.chunks_mut(MAX_ACTIVE_BASE * chunk_size))
+            .zip(see_inputs.chunks_mut(MAX_ACTIVE_BASE * 64 * chunk_size))
             .zip(moves.chunks_mut(MAX_MOVES * chunk_size))
             .zip(dist.chunks_mut(MAX_MOVES * chunk_size))
         {
@@ -51,6 +53,7 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
                 for (i, point) in data_chunk.iter().enumerate() {
                     let input_offset = MAX_ACTIVE_BASE * i;
                     let moves_offset = MAX_MOVES * i;
+                    let see_input_offset = MAX_ACTIVE_BASE * 64 * i;
 
                     let mut j = 0;
                     inputs::map_base_inputs(&point.pos, |feat| {
@@ -76,11 +79,28 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
                         let mov = Move::from(mov);
                         moves_chunk[moves_offset + distinct] = inputs::map_move_to_index(pos, mov) as i32;
                         dist_chunk[moves_offset + distinct] = f32::from(visits);
+
+                        let resolved = see::get_resolved_see_pos(pos, mov);
+                        let mut k = 0;
+                        inputs::map_base_inputs(&resolved, |feat| {
+                            assert!(feat < INPUT_SIZE);
+                            see_input_chunk[see_input_offset + MAX_ACTIVE_BASE * distinct + k] = feat as i32;
+                            k += 1;
+                        });
+
+                        for l in k..MAX_ACTIVE_BASE {
+                            see_input_chunk[see_input_offset + MAX_ACTIVE_BASE * distinct + l] = -1;
+                        }
+
                         distinct += 1;
                     }
 
                     for k in distinct..MAX_MOVES {
                         moves_chunk[moves_offset + k] = -1;
+
+                        for l in 0..MAX_ACTIVE_BASE {
+                            see_input_chunk[see_input_offset + MAX_ACTIVE_BASE * k + l] = -1;
+                        }
                     }
 
                     let total = f32::from(total);
@@ -99,6 +119,11 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
         prep.inputs.insert(
             "inputs".to_string(),
             HostMatrix::Sparse(HostSparseMatrix::new(inputs, batch_size, Shape::new(INPUT_SIZE, 1), MAX_ACTIVE_BASE)),
+        );
+
+        prep.inputs.insert(
+            "see_inputs".to_string(),
+            HostMatrix::Sparse(HostSparseMatrix::new(see_inputs, batch_size, Shape::new(INPUT_SIZE, MAX_MOVES), MAX_MOVES * MAX_ACTIVE_BASE)),
         );
 
         prep.inputs.insert(

@@ -15,19 +15,26 @@ use crate::{
     inputs::{INPUT_SIZE, MAX_ACTIVE_BASE, MAX_MOVES, NUM_MOVES_INDICES},
 };
 
-pub fn make(device: CudaDevice, hl: usize) -> (Graph<CudaDevice>, NodeId) {
+pub fn make(device: CudaDevice, hl: usize, see_hl: usize) -> (Graph<CudaDevice>, NodeId) {
     let builder = GraphBuilder::default();
 
     let inputs = builder.new_sparse_input("inputs", Shape::new(INPUT_SIZE, 1), MAX_ACTIVE_BASE);
+    let see_inputs = builder.new_sparse_input("see_inputs", Shape::new(INPUT_SIZE, MAX_MOVES), MAX_MOVES * MAX_ACTIVE_BASE);
     let targets = builder.new_dense_input("targets", Shape::new(MAX_MOVES, 1));
     let moves = builder.new_sparse_input("moves", Shape::new(NUM_MOVES_INDICES, 1), MAX_MOVES);
 
     let l0 = builder.new_affine("l0", INPUT_SIZE, hl);
     let l1 = builder.new_affine("l1", hl / 2, NUM_MOVES_INDICES);
 
-    let hl = l0.forward(inputs).crelu().pairwise_mul();
+    let s0 = builder.new_affine("s0", INPUT_SIZE, see_hl);
+    let mut s1 = builder.new_affine("s1", see_hl, 1);
+    s1.bias = s1.bias.matmul(builder.new_constant(Shape::new(1, MAX_MOVES), &[1.0]));
 
+    let hl = l0.forward(inputs).crelu().pairwise_mul();
     let logits = builder.apply(select_affine::SelectAffine::new(l1, hl, moves));
+
+    let shl = builder.apply(sparse::MultiAffine::new(s0, see_inputs));
+    let logits = logits + s1.forward(shl);
 
     let ones = builder.new_constant(Shape::new(1, MAX_MOVES), &[1.0; MAX_MOVES]);
     let loss = logits.softmax_crossentropy_loss(targets);

@@ -1,6 +1,7 @@
 pub mod data;
 pub mod inputs;
 pub mod model;
+pub mod see;
 
 use bullet_core::{
     device::Device,
@@ -18,12 +19,13 @@ use bullet_cuda_backend::CudaDevice;
 use data::MontyDataLoader;
 
 fn main() {
-    let hl = 6144;
+    let hl = 2048;
+    let see_hl = 512;
     let dataloader = MontyDataLoader::new("data/policygen6.binpack", 4096, 4);
 
     let device = CudaDevice::new(0).unwrap();
 
-    let (graph, node) = model::make(device, hl);
+    let (graph, node) = model::make(device, hl, see_hl);
 
     let params = AdamWParams { decay: 0.01, beta1: 0.9, beta2: 0.999, min_weight: -0.99, max_weight: 0.99 };
     let optimiser = Optimiser::<_, AdamW<_>>::new(graph, params).unwrap();
