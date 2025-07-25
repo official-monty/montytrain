@@ -20,7 +20,7 @@ use data::MontyDataLoader;
 
 fn main() {
     let hl = 2048;
-    let see_hl = 512;
+    let see_hl = 256;
     let dataloader = MontyDataLoader::new("data/policygen6.binpack", 4096, 4);
 
     see::test_see();
