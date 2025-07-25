@@ -50,12 +50,6 @@ extern "C" __global__ void kernel(
         if (THREADS >= 256) { if (tid < 128) sdata[tid] += sdata[tid + 128]; __syncthreads(); }
         if (THREADS >= 128) { if (tid < 64) sdata[tid] += sdata[tid + 64]; __syncthreads(); }
 
-        for(unsigned int s = blockDim.x / 2; s > 32; s >>= 1)
-        {
-            if (tid < s) sdata[tid] += sdata[tid + s];
-            __syncthreads();
-        }
-
         if (tid < 32)
         {
             warpReduce(sdata, tid);
@@ -63,7 +57,7 @@ extern "C" __global__ void kernel(
 
         if (tid == 0)
         {
-            output[locmb] = sdata[0];
+            output[locmb] = sdata[0] + biases[move];
         }
     }
     else if (tid == 0)
