@@ -48,7 +48,7 @@ impl SingleLayer {
 
 impl<B: BackendMarker> GraphIROperation<B> for SingleLayer {
     fn nodes(&self) -> Vec<AnnotatedNode> {
-        vec![self.l0w, self.l0b, self.l1w, self.l1b, self.input]
+        vec![self.l0w, self.l0b, self.l1w, self.l1b, self.input, self.moves]
     }
 
     fn output_shape(&self, ir: &GraphIR<B>) -> Result<Shape, GraphIRError> {
