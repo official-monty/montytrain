@@ -20,7 +20,6 @@ __device__ __forceinline__ float op(const float x)
 
 extern "C" __global__ void kernel(
     const int in_size,
-    const int batch_size,
     const int nnz,
     const float* l0w,
     const float* l0b,
@@ -49,7 +48,7 @@ extern "C" __global__ void kernel(
 
     if (threadIdx.x < nnz)
     {
-        for (int32_t i = threadIdx.x; i < nnz; i += THREADS)
+        for (int i = threadIdx.x; i < nnz; i += THREADS)
         {
             sI[i] = input[nnz * loc + i];
         }
@@ -63,9 +62,9 @@ extern "C" __global__ void kernel(
     {
         float4 sum = reinterpret_cast<const float4*>(l0b)[row];
 
-        for (size_t i = 0; i < nnz; i++)
+        for (int i = 0; i < nnz; i++)
         {
-            const int32_t j = sI[i];
+            const int j = sI[i];
 
             if (j == -1)
             {
@@ -98,12 +97,6 @@ extern "C" __global__ void kernel(
     if (THREADS >= 512) { if (tid < 256) sdata[tid] += sdata[tid + 256]; __syncthreads(); }
     if (THREADS >= 256) { if (tid < 128) sdata[tid] += sdata[tid + 128]; __syncthreads(); }
     if (THREADS >= 128) { if (tid < 64) sdata[tid] += sdata[tid + 64]; __syncthreads(); }
-
-    for(unsigned int s = THREADS / 2; s > 32; s >>= 1)
-    {
-        if (tid < s) sdata[tid] += sdata[tid + s];
-        __syncthreads();
-    }
 
     if (tid < 32)
     {
