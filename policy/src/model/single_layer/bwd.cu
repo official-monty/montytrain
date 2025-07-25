@@ -7,6 +7,7 @@ extern "C" __global__ void kernel(
     const int in_size,
     const int nnz,
     const int* input,
+    const int* moves,
     const float* l1w,
     const float* hl_output,
     const float* out_grad,
@@ -20,7 +21,9 @@ extern "C" __global__ void kernel(
     const int loc = blockIdx.x;
     const int tid = threadIdx.x;
 
-    if (input[nnz * loc] == -1)
+    const int move = moves[loc];
+
+    if (move == -1)
     {
         return;
     }
@@ -39,7 +42,7 @@ extern "C" __global__ void kernel(
 
     const float grd = out_grad[loc];
 
-    if (tid == 0) atomicAdd(l1bg, grd);
+    if (tid == 0) atomicAdd(l1bg + move, grd);
 
     for (int row = tid; row < in_size / 4; row += blockDim.x)
     {
@@ -51,14 +54,14 @@ extern "C" __global__ void kernel(
         sdata[4 * tid + 3] = this_hl_out.w;
         __syncthreads();
 
-        float* tWg = l1wg + row;
+        float* tWg = l1wg + in_size * move + row;
         atomicAdd(tWg                 , grd * sdata[tid                 ]);
         atomicAdd(tWg + blockDim.x    , grd * sdata[tid + blockDim.x    ]);
         atomicAdd(tWg + blockDim.x * 2, grd * sdata[tid + blockDim.x * 2]);
         atomicAdd(tWg + blockDim.x * 3, grd * sdata[tid + blockDim.x * 3]);
         __syncthreads();
 
-        float4 this_grd = reinterpret_cast<const float4*>(l1w)[row];
+        float4 this_grd = reinterpret_cast<const float4*>(l1w + in_size * move)[row];
         this_grd.x *= grd * op(this_hl_out.x);
         this_grd.y *= grd * op(this_hl_out.y);
         this_grd.z *= grd * op(this_hl_out.z);

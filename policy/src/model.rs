@@ -1,6 +1,9 @@
 mod select_affine;
 mod single_layer;
 
+use select_affine::SelectAffine;
+use single_layer::SingleLayer;
+
 use bullet_core::{
     graph::{
         builder::{GraphBuilder, Shape},
@@ -29,12 +32,15 @@ pub fn make(device: CudaDevice, hl: usize, see_hl: usize) -> (Graph<CudaDevice>,
     let l1 = builder.new_affine("l1", hl / 2, NUM_MOVES_INDICES);
 
     let s0 = builder.new_affine("s0", INPUT_SIZE, see_hl);
-    let s1 = builder.new_affine("s1", see_hl, 1);
+    let s1 = builder.new_affine("s1", see_hl, NUM_MOVES_INDICES);
 
     let hl = l0.forward(inputs).crelu().pairwise_mul();
-    let logits = builder.apply(select_affine::SelectAffine::new(l1, hl, moves));
-    let logits =
-        logits + builder.apply(single_layer::SingleLayer::new(s0, s1, see_inputs)).reshape(Shape::new(MAX_MOVES, 1));
+    let base_logits = builder.apply(SelectAffine::new(l1, hl, moves));
+
+    let see_logits = builder.apply(SingleLayer::new(s0, s1, see_inputs, moves));
+    let see_logits = see_logits.reshape(Shape::new(MAX_MOVES, 1));
+
+    let logits = base_logits + see_logits;
 
     let ones = builder.new_constant(Shape::new(1, MAX_MOVES), &[1.0; MAX_MOVES]);
     let loss = logits.softmax_crossentropy_loss(targets);

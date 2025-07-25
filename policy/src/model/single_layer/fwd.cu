@@ -26,6 +26,7 @@ extern "C" __global__ void kernel(
     const float* l1w,
     const float* l1b,
     const int* input,
+    const int* moves,
     float* hl_output,
     float* output
 ) {
@@ -34,7 +35,9 @@ extern "C" __global__ void kernel(
     const int loc = blockIdx.x;
     const int tid = threadIdx.x;
 
-    if (input[nnz * loc] == -1)
+    const int move = moves[loc];
+
+    if (move == -1)
     {
         if (tid == 0)
         {
@@ -86,7 +89,7 @@ extern "C" __global__ void kernel(
 
         reinterpret_cast<float4*>(hl_output + loc * in_size)[row] = sum;
 
-        const float4 tw = reinterpret_cast<const float4*>(l1w)[row];
+        const float4 tw = reinterpret_cast<const float4*>(l1w + in_size * move)[row];
         local += tw.x * sum.x + tw.y * sum.y + tw.z * sum.z + tw.w * sum.w;
     }
 
@@ -105,6 +108,6 @@ extern "C" __global__ void kernel(
 
     if (tid == 0)
     {
-        output[loc] = sdata[0] + l1b[0];
+        output[loc] = sdata[0] + l1b[move];
     }
 }
