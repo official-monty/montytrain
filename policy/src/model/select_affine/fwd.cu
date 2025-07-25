@@ -57,7 +57,7 @@ extern "C" __global__ void kernel(
 
         if (tid == 0)
         {
-            output[locmb] = sdata[0];
+            output[locmb] = sdata[0] + biases[move];
         }
     }
     else if (tid == 0)
