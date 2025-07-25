@@ -141,10 +141,10 @@ impl GraphInstruction<CudaDevice> for SingleLayerFwd {
         let mut output = graph.get_mut(self.output)?;
         let output = output.dense_mut()?;
 
-        let single_size = input.single_size();
-        let batch_size = input.batch_size();
-        let nnz = input.nnz;
-        assert_eq!(nnz, MAX_MOVES * MAX_ACTIVE_BASE);
+        let rows = hl_output.single_size() / MAX_MOVES;
+        let batch_size = hl_output.batch_size();
+        let nnz = input.nnz / MAX_MOVES;
+        assert_eq!(input.nnz, MAX_MOVES * MAX_ACTIVE_BASE);
         assert_eq!(MAX_MOVES, 64);
 
         if batch_size != hl_output.batch_size()
@@ -160,7 +160,7 @@ impl GraphInstruction<CudaDevice> for SingleLayerFwd {
         let device = input.buf.device.clone();
 
         unsafe {
-            let threads = (single_size / 4).min(512) as u32;
+            let threads = (rows / 4).min(512) as u32;
 
             assert!(threads.is_power_of_two(), "hl size must be a power of 2");
 
@@ -170,15 +170,15 @@ impl GraphInstruction<CudaDevice> for SingleLayerFwd {
             })?;
 
             let batch_size = batch_size.unwrap_or(1) as u32;
-            let grid_dim = (64, batch_size, 1);
+            let grid_dim = (64 * batch_size, 1, 1);
             let block_dim = (threads, 1, 1);
-            let cfg = LaunchConfig { grid_dim, block_dim, shared_mem_bytes: 4 * threads };
+            let cfg = LaunchConfig { grid_dim, block_dim, shared_mem_bytes: 4 * (threads + nnz as u32) };
 
             device
                 .stream()
                 .launch_builder(&func)
-                .arg(&(single_size as i32))
-                .arg(&(batch_size as i32))
+                .arg(&(rows as i32))
+                .arg(&(nnz as i32))
                 .arg(&l0w.buf.buf)
                 .arg(&l0b.buf.buf)
                 .arg(&l1w.buf.buf)
@@ -232,11 +232,11 @@ impl GraphInstruction<CudaDevice> for SingleLayerBwd {
         let mut l1bg = graph.get_mut(self.l1bg)?;
         let l1bg = l1bg.dense_mut()?;
 
-        let single_size = output_grad.single_size();
-        let batch_size = output_grad.batch_size();
+        let rows = hl_output.single_size() / MAX_MOVES;
+        let batch_size = hl_output.batch_size();
 
-        let nnz = input.nnz;
-        assert_eq!(nnz, MAX_MOVES * MAX_ACTIVE_BASE);
+        let nnz = input.nnz / MAX_MOVES;
+        assert_eq!(input.nnz, MAX_MOVES * MAX_ACTIVE_BASE);
 
         if batch_size != input.batch_size()
             || batch_size != hl_output.batch_size()
@@ -255,20 +255,21 @@ impl GraphInstruction<CudaDevice> for SingleLayerBwd {
             let func = device
                 .get_custom_func_or_rtc("single_layer_bwd", || include_str!("single_layer/bwd.cu").to_string())?;
 
-            let threads = (single_size / 4).min(1024) as u32;
+            let threads = (rows / 4).min(1024) as u32;
             let batch_size = batch_size.unwrap_or(1) as u32;
-            let grid_dim = (64, batch_size, 1);
-            let cfg = LaunchConfig { grid_dim, block_dim: (threads, 1, 1), shared_mem_bytes: 16 * threads };
+            let grid_dim = (64 * batch_size, 1, 1);
+            let shared_mem_bytes = 4 * (4 * threads + nnz as u32);
+            let cfg = LaunchConfig { grid_dim, block_dim: (threads, 1, 1), shared_mem_bytes };
 
             device
                 .stream()
                 .launch_builder(&func)
-                .arg(&(single_size as i32))
-                .arg(&(batch_size as i32))
+                .arg(&(rows as i32))
+                .arg(&(nnz as i32))
                 .arg(&input.buf.buf)
-                .arg(&output_grad.buf.buf)
-                .arg(&hl_output.buf.buf)
                 .arg(&l1w.buf.buf)
+                .arg(&hl_output.buf.buf)
+                .arg(&output_grad.buf.buf)
                 .arg(&mut l0wg.buf.buf)
                 .arg(&mut l0bg.buf.buf)
                 .arg(&mut l1wg.buf.buf)

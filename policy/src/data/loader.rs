@@ -8,7 +8,10 @@ use bullet_core::{
 use montyformat::chess::Move;
 
 use super::reader::{DataReader, DecompressedData};
-use crate::{inputs::{self, INPUT_SIZE, MAX_ACTIVE_BASE, MAX_MOVES, NUM_MOVES_INDICES}, see};
+use crate::{
+    inputs::{self, INPUT_SIZE, MAX_ACTIVE_BASE, MAX_MOVES, NUM_MOVES_INDICES},
+    see,
+};
 
 #[derive(Clone)]
 pub struct MontyDataLoader {
@@ -80,7 +83,7 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
                         moves_chunk[moves_offset + distinct] = inputs::map_move_to_index(pos, mov) as i32;
                         dist_chunk[moves_offset + distinct] = f32::from(visits);
 
-                        let resolved = see::get_resolved_see_pos(pos, mov);
+                        let resolved = see::get_resolved_see_pos(pos, &point.castling, mov);
                         let mut k = 0;
                         inputs::map_base_inputs(&resolved, |feat| {
                             assert!(feat < INPUT_SIZE);
@@ -123,7 +126,12 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
 
         prep.inputs.insert(
             "see_inputs".to_string(),
-            HostMatrix::Sparse(HostSparseMatrix::new(see_inputs, batch_size, Shape::new(INPUT_SIZE, MAX_MOVES), MAX_MOVES * MAX_ACTIVE_BASE)),
+            HostMatrix::Sparse(HostSparseMatrix::new(
+                see_inputs,
+                batch_size,
+                Shape::new(INPUT_SIZE, MAX_MOVES),
+                MAX_MOVES * MAX_ACTIVE_BASE,
+            )),
         );
 
         prep.inputs.insert(

@@ -44,7 +44,7 @@ extern "C" __global__ void kernel(
         return;
     }
 
-    int* sI = reinterpret_cast<int*>(sdata + THREADS);
+    int* sI = reinterpret_cast<int*>(&sdata[THREADS]);
 
     if (threadIdx.x < nnz)
     {

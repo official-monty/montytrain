@@ -23,6 +23,8 @@ fn main() {
     let see_hl = 512;
     let dataloader = MontyDataLoader::new("data/policygen6.binpack", 4096, 4);
 
+    see::test_see();
+
     let device = CudaDevice::new(0).unwrap();
 
     let (graph, node) = model::make(device, hl, see_hl);
@@ -37,7 +39,7 @@ fn main() {
     let initial_lr = 0.001;
     let final_lr = 0.00001;
 
-    let steps = TrainingSteps { batch_size: 16384, batches_per_superbatch: 6104, start_superbatch: 1, end_superbatch };
+    let steps = TrainingSteps { batch_size: 16384, batches_per_superbatch: 512, start_superbatch: 1, end_superbatch };
 
     let schedule = TrainingSchedule {
         steps,
@@ -51,6 +53,8 @@ fn main() {
             initial_lr * (final_lr / initial_lr).powf(lambda)
         }),
     };
+
+    trainer.optimiser.graph.profile_function("backward").unwrap();
 
     trainer
         .train_custom(

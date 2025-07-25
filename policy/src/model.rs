@@ -20,7 +20,8 @@ pub fn make(device: CudaDevice, hl: usize, see_hl: usize) -> (Graph<CudaDevice>,
     let builder = GraphBuilder::default();
 
     let inputs = builder.new_sparse_input("inputs", Shape::new(INPUT_SIZE, 1), MAX_ACTIVE_BASE);
-    let see_inputs = builder.new_sparse_input("see_inputs", Shape::new(INPUT_SIZE, MAX_MOVES), MAX_MOVES * MAX_ACTIVE_BASE);
+    let see_inputs =
+        builder.new_sparse_input("see_inputs", Shape::new(INPUT_SIZE, MAX_MOVES), MAX_MOVES * MAX_ACTIVE_BASE);
     let targets = builder.new_dense_input("targets", Shape::new(MAX_MOVES, 1));
     let moves = builder.new_sparse_input("moves", Shape::new(NUM_MOVES_INDICES, 1), MAX_MOVES);
 
@@ -32,7 +33,8 @@ pub fn make(device: CudaDevice, hl: usize, see_hl: usize) -> (Graph<CudaDevice>,
 
     let hl = l0.forward(inputs).crelu().pairwise_mul();
     let logits = builder.apply(select_affine::SelectAffine::new(l1, hl, moves));
-    let logits = logits + builder.apply(single_layer::SingleLayer::new(s0, s1, see_inputs));
+    let logits =
+        logits + builder.apply(single_layer::SingleLayer::new(s0, s1, see_inputs)).reshape(Shape::new(MAX_MOVES, 1));
 
     let ones = builder.new_constant(Shape::new(1, MAX_MOVES), &[1.0; MAX_MOVES]);
     let loss = logits.softmax_crossentropy_loss(targets);
