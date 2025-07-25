@@ -27,6 +27,7 @@ extern "C" __global__ void kernel(
     const float* l1b,
     const int* input,
     const int* moves,
+    const int* stms,
     float* hl_output,
     float* output
 ) {
@@ -35,9 +36,9 @@ extern "C" __global__ void kernel(
     const int loc = blockIdx.x;
     const int tid = threadIdx.x;
 
-    const int move = moves[loc];
+    const int move_idx = moves[loc];
 
-    if (move == -1)
+    if (move_idx == -1)
     {
         if (tid == 0)
         {
@@ -46,6 +47,8 @@ extern "C" __global__ void kernel(
 
         return;
     }
+
+    const int move = 2 * move_idx + stms[loc];
 
     int* sI = reinterpret_cast<int*>(&sdata[THREADS]);
 

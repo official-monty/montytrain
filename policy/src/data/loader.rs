@@ -41,14 +41,16 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
 
     let mut inputs = vec![0; MAX_ACTIVE_BASE * batch_size];
     let mut see_inputs = vec![0; MAX_ACTIVE_BASE * 64 * batch_size];
+    let mut stms = vec![0; MAX_MOVES * batch_size];
     let mut moves = vec![0; MAX_MOVES * batch_size];
     let mut dist = vec![0.0; MAX_MOVES * batch_size];
 
     std::thread::scope(|s| {
-        for ((((data_chunk, input_chunk), see_input_chunk), moves_chunk), dist_chunk) in data
+        for (((((data_chunk, input_chunk), see_input_chunk), stms_chunk), moves_chunk), dist_chunk) in data
             .chunks(chunk_size)
             .zip(inputs.chunks_mut(MAX_ACTIVE_BASE * chunk_size))
             .zip(see_inputs.chunks_mut(MAX_ACTIVE_BASE * 64 * chunk_size))
+            .zip(stms.chunks_mut(MAX_MOVES * chunk_size))
             .zip(moves.chunks_mut(MAX_MOVES * chunk_size))
             .zip(dist.chunks_mut(MAX_MOVES * chunk_size))
         {
@@ -59,7 +61,7 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
                     let see_input_offset = MAX_ACTIVE_BASE * 64 * i;
 
                     let mut j = 0;
-                    inputs::map_base_inputs(&point.pos, |feat| {
+                    inputs::map_base_inputs(&point.pos, None, |feat| {
                         assert!(feat < INPUT_SIZE);
                         input_chunk[input_offset + j] = feat as i32;
                         j += 1;
@@ -76,6 +78,10 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
 
                     let pos = &point.pos;
 
+                    let stm = point.pos.stm();
+                    let hm = if point.pos.king_index() % 8 > 3 { 7 } else { 0 };
+                    let no_threats = Some((stm, hm));
+
                     for &(mov, visits) in &point.moves[..point.num] {
                         total += visits;
 
@@ -84,9 +90,11 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
                         dist_chunk[moves_offset + distinct] = f32::from(visits);
 
                         let resolved = see::get_resolved_see_pos(pos, &point.castling, mov);
+                        stms_chunk[moves_offset + distinct] = i32::from(resolved.stm() == stm);
+
                         let mut k = 0;
-                        inputs::map_base_inputs(&resolved, |feat| {
-                            assert!(feat < INPUT_SIZE);
+                        inputs::map_base_inputs(&resolved, no_threats, |feat| {
+                            assert!(feat < 768);
                             see_input_chunk[see_input_offset + MAX_ACTIVE_BASE * distinct + k] = feat as i32;
                             k += 1;
                         });
@@ -99,6 +107,7 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
                     }
 
                     for k in distinct..MAX_MOVES {
+                        stms_chunk[moves_offset + k] = -1;
                         moves_chunk[moves_offset + k] = -1;
 
                         for l in 0..MAX_ACTIVE_BASE {
@@ -129,8 +138,18 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
             HostMatrix::Sparse(HostSparseMatrix::new(
                 see_inputs,
                 batch_size,
-                Shape::new(INPUT_SIZE, MAX_MOVES),
+                Shape::new(768, MAX_MOVES),
                 MAX_MOVES * MAX_ACTIVE_BASE,
+            )),
+        );
+
+        prep.inputs.insert(
+            "stms".to_string(),
+            HostMatrix::Sparse(HostSparseMatrix::new(
+                stms,
+                batch_size,
+                Shape::new(MAX_MOVES, 1),
+                MAX_MOVES,
             )),
         );
 

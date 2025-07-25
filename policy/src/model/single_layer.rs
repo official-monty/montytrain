@@ -26,6 +26,7 @@ pub struct SingleLayer {
     l1b: AnnotatedNode,
     input: AnnotatedNode,
     moves: AnnotatedNode,
+    stms: AnnotatedNode,
 }
 
 impl SingleLayer {
@@ -34,6 +35,7 @@ impl SingleLayer {
         l1: Affine<'a, CudaMarker>,
         input: GraphBuilderNode<'a, CudaMarker>,
         moves: GraphBuilderNode<'a, CudaMarker>,
+        stms: GraphBuilderNode<'a, CudaMarker>,
     ) -> Self {
         Self {
             l0w: l0.weights.annotated_node(),
@@ -42,13 +44,14 @@ impl SingleLayer {
             l1b: l1.bias.annotated_node(),
             input: input.annotated_node(),
             moves: moves.annotated_node(),
+            stms: stms.annotated_node(),
         }
     }
 }
 
 impl<B: BackendMarker> GraphIROperation<B> for SingleLayer {
     fn nodes(&self) -> Vec<AnnotatedNode> {
-        vec![self.l0w, self.l0b, self.l1w, self.l1b, self.input, self.moves]
+        vec![self.l0w, self.l0b, self.l1w, self.l1b, self.input, self.moves, self.stms]
     }
 
     fn output_shape(&self, ir: &GraphIR<B>) -> Result<Shape, GraphIRError> {
@@ -81,6 +84,7 @@ impl GraphIROperationCompilable<CudaMarker> for SingleLayer {
         let l1b = NodeId::new(self.l1b.idx, NodeIdTy::Values);
         let input = NodeId::new(self.input.idx, NodeIdTy::Values);
         let moves = NodeId::new(self.moves.idx, NodeIdTy::Values);
+        let stms = NodeId::new(self.stms.idx, NodeIdTy::Values);
 
         let hl_output = NodeId::new(output_node, NodeIdTy::Ancillary(0));
         let output = NodeId::new(output_node, NodeIdTy::Values);
@@ -89,7 +93,7 @@ impl GraphIROperationCompilable<CudaMarker> for SingleLayer {
 
         func.push(MaybeUpdateBatchSize { input, output });
         func.push(MaybeUpdateBatchSize { input, output: hl_output });
-        func.push(SingleLayerFwd { l0w, l0b, l1w, l1b, input, moves, hl_output, output });
+        func.push(SingleLayerFwd { l0w, l0b, l1w, l1b, input, moves, stms, hl_output, output });
 
         func
     }
@@ -98,6 +102,7 @@ impl GraphIROperationCompilable<CudaMarker> for SingleLayer {
         let l1w = NodeId::new(self.l1w.idx, NodeIdTy::Values);
         let input = NodeId::new(self.input.idx, NodeIdTy::Values);
         let moves = NodeId::new(self.moves.idx, NodeIdTy::Values);
+        let stms = NodeId::new(self.stms.idx, NodeIdTy::Values);
 
         let l0wg = NodeId::new(self.l0w.idx, NodeIdTy::Gradients);
         let l0bg = NodeId::new(self.l0b.idx, NodeIdTy::Gradients);
@@ -109,7 +114,7 @@ impl GraphIROperationCompilable<CudaMarker> for SingleLayer {
 
         let mut func = GraphFunction::default();
 
-        func.push(SingleLayerBwd { l1w, input, moves, hl_output, output_grad, l0wg, l0bg, l1wg, l1bg });
+        func.push(SingleLayerBwd { l1w, input, moves, stms, hl_output, output_grad, l0wg, l0bg, l1wg, l1bg });
 
         func
     }
@@ -123,6 +128,7 @@ struct SingleLayerFwd {
     l1b: NodeId,
     input: NodeId,
     moves: NodeId,
+    stms: NodeId,
     hl_output: NodeId,
     output: NodeId,
 }
@@ -133,6 +139,8 @@ impl GraphInstruction<CudaDevice> for SingleLayerFwd {
         let input = input.sparse()?;
         let moves = graph.get(self.moves)?;
         let moves = moves.sparse()?;
+        let stms = graph.get(self.stms)?;
+        let stms = stms.sparse()?;
 
         let l0w = graph.get(self.l0w)?;
         let l0w = l0w.dense()?;
@@ -194,6 +202,7 @@ impl GraphInstruction<CudaDevice> for SingleLayerFwd {
                 .arg(&l1b.buf.buf)
                 .arg(&input.buf.buf)
                 .arg(&moves.buf.buf)
+                .arg(&stms.buf.buf)
                 .arg(&mut hl_output.buf.buf)
                 .arg(&mut output.buf.buf)
                 .launch(cfg)
@@ -208,6 +217,7 @@ impl GraphInstruction<CudaDevice> for SingleLayerFwd {
 struct SingleLayerBwd {
     input: NodeId,
     moves: NodeId,
+    stms: NodeId,
     hl_output: NodeId,
     output_grad: NodeId,
     l1w: NodeId,
@@ -230,6 +240,9 @@ impl GraphInstruction<CudaDevice> for SingleLayerBwd {
 
         let moves = graph.get(self.moves)?;
         let moves = moves.sparse()?;
+
+        let stms = graph.get(self.stms)?;
+        let stms = stms.sparse()?;
 
         let l1w = graph.get(self.l1w)?;
         let l1w = l1w.dense()?;
@@ -282,6 +295,7 @@ impl GraphInstruction<CudaDevice> for SingleLayerBwd {
                 .arg(&(nnz as i32))
                 .arg(&input.buf.buf)
                 .arg(&moves.buf.buf)
+                .arg(&stms.buf.buf)
                 .arg(&l1w.buf.buf)
                 .arg(&hl_output.buf.buf)
                 .arg(&output_grad.buf.buf)

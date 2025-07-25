@@ -24,20 +24,21 @@ pub fn make(device: CudaDevice, hl: usize, see_hl: usize) -> (Graph<CudaDevice>,
 
     let inputs = builder.new_sparse_input("inputs", Shape::new(INPUT_SIZE, 1), MAX_ACTIVE_BASE);
     let see_inputs =
-        builder.new_sparse_input("see_inputs", Shape::new(INPUT_SIZE, MAX_MOVES), MAX_MOVES * MAX_ACTIVE_BASE);
+        builder.new_sparse_input("see_inputs", Shape::new(768, MAX_MOVES), MAX_MOVES * MAX_ACTIVE_BASE);
     let targets = builder.new_dense_input("targets", Shape::new(MAX_MOVES, 1));
     let moves = builder.new_sparse_input("moves", Shape::new(NUM_MOVES_INDICES, 1), MAX_MOVES);
+    let stms = builder.new_sparse_input("stms", Shape::new(MAX_MOVES, 1), MAX_MOVES);
 
     let l0 = builder.new_affine("l0", INPUT_SIZE, hl);
     let l1 = builder.new_affine("l1", hl / 2, NUM_MOVES_INDICES);
 
-    let s0 = builder.new_affine("s0", INPUT_SIZE, see_hl);
-    let s1 = builder.new_affine("s1", see_hl, NUM_MOVES_INDICES);
+    let s0 = builder.new_affine("s0", 768, see_hl);
+    let s1 = builder.new_affine("s1", see_hl, 2 * NUM_MOVES_INDICES);
 
     let hl = l0.forward(inputs).crelu().pairwise_mul();
     let base_logits = builder.apply(SelectAffine::new(l1, hl, moves));
 
-    let see_logits = builder.apply(SingleLayer::new(s0, s1, see_inputs, moves));
+    let see_logits = builder.apply(SingleLayer::new(s0, s1, see_inputs, moves, stms));
     let see_logits = see_logits.reshape(Shape::new(MAX_MOVES, 1));
 
     let logits = base_logits + see_logits;

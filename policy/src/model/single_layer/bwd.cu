@@ -8,6 +8,7 @@ extern "C" __global__ void kernel(
     const int nnz,
     const int* input,
     const int* moves,
+    const int* stms,
     const float* l1w,
     const float* hl_output,
     const float* out_grad,
@@ -21,13 +22,15 @@ extern "C" __global__ void kernel(
     const int loc = blockIdx.x;
     const int tid = threadIdx.x;
 
-    const int move = moves[loc];
+    const int move_idx = moves[loc];
 
-    if (move == -1)
+    if (move_idx == -1)
     {
         return;
     }
-    
+
+        const int move = 2 * move_idx + stms[loc];
+
     int* sI = reinterpret_cast<int*>(sdata + 4 * blockDim.x);
 
     if (threadIdx.x < nnz)

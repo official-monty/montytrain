@@ -6,7 +6,8 @@ pub const MAX_ACTIVE_BASE: usize = 32;
 pub const NUM_MOVES_INDICES: usize = OFFSETS[5][64] + PROMOS + 2 + 8;
 
 pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
-    let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
+    let hm = if pos.king_index() % 8 > 3 { 7 } else { 0 };
+    let flip = hm ^ if pos.stm() == Side::BLACK { 56 } else { 0 };
 
     let src = usize::from(mov.src() ^ flip);
     let dst = usize::from(mov.to() ^ flip);
@@ -18,7 +19,9 @@ pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
 
         OFFSETS[5][64] + (PROMOS / 4) * (mov.promo_pc() - Piece::KNIGHT) + promo_id
     } else if mov.flag() == Flag::QS || mov.flag() == Flag::KS {
-        OFFSETS[5][64] + PROMOS + usize::from(mov.flag() == Flag::KS)
+        let is_ks = usize::from(mov.flag() == Flag::KS);
+        let is_not_hm = usize::from(hm == 0);
+        OFFSETS[5][64] + PROMOS + (is_ks ^ is_not_hm)
     } else if mov.flag() == Flag::DBL {
         OFFSETS[5][64] + PROMOS + 2 + (src % 8)
     } else {
@@ -29,11 +32,15 @@ pub fn map_move_to_index(pos: &Position, mov: Move) -> usize {
     }
 }
 
-pub fn map_base_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
-    let flip = if pos.stm() == Side::BLACK { 56 } else { 0 };
-
-    let threats = pos.threats_by(pos.stm() ^ 1);
-    let defences = pos.threats_by(pos.stm());
+pub fn map_base_inputs<F: FnMut(usize)>(pos: &Position, no_threats: Option<(usize, usize)>, mut f: F) {
+    let (threats, defences, flip) = if let Some((stm, hm)) = no_threats {
+        let flip = hm ^ if stm == Side::BLACK { 56 } else { 0 };
+        (0, 0, flip)
+    } else {
+        let hm = if pos.king_index() % 8 > 3 { 7 } else { 0 };
+        let flip = hm ^ if pos.stm() == Side::BLACK { 56 } else { 0 };
+        (pos.threats_by(pos.stm() ^ 1), pos.threats_by(pos.stm()), flip)
+    };
 
     for piece in Piece::PAWN..=Piece::KING {
         let pc = 64 * (piece - 2);
