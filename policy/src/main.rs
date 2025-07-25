@@ -19,8 +19,8 @@ use bullet_cuda_backend::CudaDevice;
 use data::MontyDataLoader;
 
 fn main() {
-    let hl = 2048;
-    let see_hl = 1024;
+    let hl = 1024;
+    let see_hl = 512;
     let dataloader = MontyDataLoader::new("data/policygen6.binpack", 4096, 4);
 
     see::test_see();
