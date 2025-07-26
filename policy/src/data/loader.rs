@@ -41,8 +41,6 @@ pub fn prepare(data: &[DecompressedData], threads: usize, pool: &mut rayon::Thre
     let batch_size = data.len();
     let chunk_size = batch_size.div_ceil(threads);
 
-    let t = std::time::Instant::now();
-
     let mut inputs = vec![0; MAX_ACTIVE_BASE * batch_size];
     let mut see_inputs = vec![0; MAX_ACTIVE_BASE * 64 * batch_size];
     let mut stms = vec![0; MAX_MOVES * batch_size];
@@ -162,8 +160,6 @@ pub fn prepare(data: &[DecompressedData], threads: usize, pool: &mut rayon::Thre
         "targets".to_string(),
         HostMatrix::Dense(HostDenseMatrix::new(dist, batch_size, Shape::new(MAX_MOVES, 1))),
     );
-
-    println!("{}", batch_size as f64 / t.elapsed().as_secs_f64());
 
     prep
 }
