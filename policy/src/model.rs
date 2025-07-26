@@ -23,8 +23,7 @@ pub fn make(device: CudaDevice, hl: usize, see_hl: usize) -> (Graph<CudaDevice>,
     let builder = GraphBuilder::default();
 
     let inputs = builder.new_sparse_input("inputs", Shape::new(INPUT_SIZE, 1), MAX_ACTIVE_BASE);
-    let see_inputs =
-        builder.new_sparse_input("see_inputs", Shape::new(768, MAX_MOVES), MAX_MOVES * MAX_ACTIVE_BASE);
+    let see_inputs = builder.new_sparse_input("see_inputs", Shape::new(768, MAX_MOVES), MAX_MOVES * MAX_ACTIVE_BASE);
     let targets = builder.new_dense_input("targets", Shape::new(MAX_MOVES, 1));
     let moves = builder.new_sparse_input("moves", Shape::new(NUM_MOVES_INDICES, 1), MAX_MOVES);
     let stms = builder.new_sparse_input("stms", Shape::new(MAX_MOVES, 1), MAX_MOVES);
@@ -65,7 +64,7 @@ pub fn eval(graph: &mut Graph<CudaDevice>, node: NodeId, fen: &str) {
 
     let point = DecompressedData { pos, castling, moves, num };
 
-    let data = prepare(&[point], 1);
+    let data = prepare(&[point], 1, &mut rayon::ThreadPoolBuilder::new().num_threads(1).build().unwrap());
 
     let mut on_device = PreparedBatchDevice::new(graph.device(), &data).unwrap();
 

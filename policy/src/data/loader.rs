@@ -29,15 +29,19 @@ impl DataLoader for MontyDataLoader {
     type Error = DataLoadingError;
 
     fn map_batches<F: FnMut(PreparedBatchHost) -> bool>(self, batch_size: usize, mut f: F) -> Result<(), Self::Error> {
-        self.reader.map_batches(batch_size, |batch| f(prepare(batch, self.threads)));
+        let mut pool = rayon::ThreadPoolBuilder::new().num_threads(self.threads).build().unwrap();
+
+        self.reader.map_batches(batch_size, |batch| f(prepare(batch, self.threads, &mut pool)));
 
         Ok(())
     }
 }
 
-pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
+pub fn prepare(data: &[DecompressedData], threads: usize, pool: &mut rayon::ThreadPool) -> PreparedBatchHost {
     let batch_size = data.len();
     let chunk_size = batch_size.div_ceil(threads);
+
+    let t = std::time::Instant::now();
 
     let mut inputs = vec![0; MAX_ACTIVE_BASE * batch_size];
     let mut see_inputs = vec![0; MAX_ACTIVE_BASE * 64 * batch_size];
@@ -45,7 +49,7 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
     let mut moves = vec![0; MAX_MOVES * batch_size];
     let mut dist = vec![0.0; MAX_MOVES * batch_size];
 
-    std::thread::scope(|s| {
+    pool.scope(|s| {
         for (((((data_chunk, input_chunk), see_input_chunk), stms_chunk), moves_chunk), dist_chunk) in data
             .chunks(chunk_size)
             .zip(inputs.chunks_mut(MAX_ACTIVE_BASE * chunk_size))
@@ -54,7 +58,7 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
             .zip(moves.chunks_mut(MAX_MOVES * chunk_size))
             .zip(dist.chunks_mut(MAX_MOVES * chunk_size))
         {
-            s.spawn(move || {
+            s.spawn(move |_| {
                 for (i, point) in data_chunk.iter().enumerate() {
                     let input_offset = MAX_ACTIVE_BASE * i;
                     let moves_offset = MAX_MOVES * i;
@@ -145,12 +149,7 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
 
         prep.inputs.insert(
             "stms".to_string(),
-            HostMatrix::Sparse(HostSparseMatrix::new(
-                stms,
-                batch_size,
-                Shape::new(MAX_MOVES, 1),
-                MAX_MOVES,
-            )),
+            HostMatrix::Sparse(HostSparseMatrix::new(stms, batch_size, Shape::new(MAX_MOVES, 1), MAX_MOVES)),
         );
 
         prep.inputs.insert(
@@ -163,6 +162,8 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
         "targets".to_string(),
         HostMatrix::Dense(HostDenseMatrix::new(dist, batch_size, Shape::new(MAX_MOVES, 1))),
     );
+
+    println!("{}", batch_size as f64 / t.elapsed().as_secs_f64());
 
     prep
 }
