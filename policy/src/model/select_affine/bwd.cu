@@ -28,6 +28,7 @@ extern "C" __global__ void kernel(
 
         for (int idx = tid; idx < in_size / 4; idx += blockDim.x)
         {
+            const int section = 4 * blockDim.x * (idx / blockDim.x) + tid;
             const float4 ti = tI[idx];
             const float4 tw = tW[idx];
 
@@ -37,7 +38,7 @@ extern "C" __global__ void kernel(
             sdata[4 * tid + 3] = ti.w;
             __syncthreads();
 
-            float* tWg = weights_grad + in_size * move + idx;
+            float* tWg = weights_grad + in_size * move + section;
             atomicAdd(tWg                 , grd * sdata[tid                 ]);
             atomicAdd(tWg + blockDim.x    , grd * sdata[tid + blockDim.x    ]);
             atomicAdd(tWg + blockDim.x * 2, grd * sdata[tid + blockDim.x * 2]);
@@ -50,7 +51,7 @@ extern "C" __global__ void kernel(
             sdata[4 * tid + 3] = tw.w;
             __syncthreads();
 
-            float* tIg = input_grad + in_size * loc_in_batch + idx;
+            float* tIg = input_grad + in_size * loc_in_batch + section;
             atomicAdd(tIg                 , grd * sdata[tid                 ]);
             atomicAdd(tIg + blockDim.x    , grd * sdata[tid + blockDim.x    ]);
             atomicAdd(tIg + blockDim.x * 2, grd * sdata[tid + blockDim.x * 2]);
