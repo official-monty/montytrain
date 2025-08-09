@@ -19,7 +19,7 @@ use crate::data::MontyDataLoader;
 
 fn main() {
     let hl = 512;
-    let dataloader = MontyDataLoader::new("data/policygen6.binpack", 4096, 4);
+    let dataloader = MontyDataLoader::new("data/policygen6.binpack", 4096, 4, 4);
 
     let device = CudaDevice::new(0).unwrap();
 
