@@ -1,12 +1,12 @@
 use std::{
     fs::File,
-    io::BufReader,
+    io::{BufReader, Read, Cursor},
     sync::mpsc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use montyformat::{
-    chess::{Castling, Position}, FastDeserialise, MontyFormat
+    chess::{Castling, Move, Position}, FastDeserialise, MontyFormat
 };
 
 use crate::inputs::MAX_MOVES;
@@ -41,7 +41,7 @@ impl DataReader {
         let file_path = self.file_path.clone();
         let buffer_size = self.buffer_size;
         let threads = self.threads;
-        let games_per_thread = 1024;
+        let games_per_thread = 2048;
 
         let (game_sender, game_receiver) = mpsc::sync_channel::<Vec<u8>>(32);
 
@@ -59,7 +59,7 @@ impl DataReader {
             }
         });
 
-        let (mini_sender, mini_receiver) = mpsc::sync_channel::<Vec<DecompressedData>>(4);
+        let (mini_sender, mini_receiver) = mpsc::sync_channel::<Vec<DecompressedData>>(threads);
 
         std::thread::spawn(move || {
             let mut buffer = Vec::new();
@@ -68,17 +68,15 @@ impl DataReader {
                 buffer.push(game_bytes);
                 if buffer.len() == games_per_thread * threads {
                     if std::thread::scope(|s| {
-                        let mut handles = Vec::new();
+                        let mut handles = Vec::with_capacity(threads);
 
                         for chunk in buffer.chunks(games_per_thread) {
                             let this_sender = mini_sender.clone();
                             let handle = s.spawn(move || {
-                                let mut buf = Vec::new();
+                                let mut buf = Vec::with_capacity(160 * games_per_thread);
 
                                 for game_bytes in chunk {
-                                    let mut cursor = std::io::Cursor::new(game_bytes);
-                                    let game = MontyFormat::deserialise_from(&mut cursor).unwrap();
-                                    parse_into_buffer(game, &mut buf);
+                                    parse_into_buffer(game_bytes, &mut buf);
                                 }
 
                                 this_sender.send(buf).is_err()
@@ -110,8 +108,6 @@ impl DataReader {
                     let diff = shuffle_buffer.capacity() - shuffle_buffer.len();
                     shuffle_buffer.extend_from_slice(&buffer[..diff]);
 
-                    shuffle(&mut shuffle_buffer);
-
                     if buffer_sender.send(shuffle_buffer).is_err() {
                         break;
                     }
@@ -122,7 +118,19 @@ impl DataReader {
             }
         });
 
-        'dataloading: while let Ok(inputs) = buffer_receiver.recv() {
+        let (shuffled_sender, shuffled_receiver) = mpsc::sync_channel::<Vec<DecompressedData>>(0);
+
+        std::thread::spawn(move || {
+            while let Ok(mut inputs) = buffer_receiver.recv() {
+                shuffle(&mut inputs);
+                
+                if shuffled_sender.send(inputs).is_err() {
+                    break;
+                }
+            }
+        });
+
+        'dataloading: while let Ok(inputs) = shuffled_receiver.recv() {
             for batch in inputs.chunks(batch_size) {
                 if f(batch) {
                     break 'dataloading;
@@ -130,7 +138,7 @@ impl DataReader {
             }
         }
 
-        drop(buffer_receiver);
+        drop(shuffled_receiver);
     }
 }
 
@@ -143,24 +151,105 @@ fn shuffle(data: &mut [DecompressedData]) {
     }
 }
 
-fn parse_into_buffer(game: MontyFormat, buffer: &mut Vec<DecompressedData>) {
-    let mut pos = game.startpos;
-    let castling = game.castling;
+macro_rules! read_into_primitive {
+    ($reader:expr, $t:ty) => {{
+        let mut buf = [0u8; std::mem::size_of::<$t>()];
+        $reader.read_exact(&mut buf).unwrap();
+        <$t>::from_le_bytes(buf)
+    }};
+}
 
-    for data in game.moves {
-        if let Some(dist) = data.visit_distribution.as_ref() {
-            if dist.len() > 1 && dist.len() <= MAX_MOVES {
-                let mut policy_data = DecompressedData { pos, castling, moves: [(0, 0); MAX_MOVES], num: dist.len() };
+fn parse_into_buffer(game: &[u8], buffer: &mut Vec<DecompressedData>) {
+    let mut reader = Cursor::new(game);
 
-                for (i, (mov, visits)) in dist.iter().enumerate() {
-                    policy_data.moves[i] = (u16::from(*mov), *visits as u16);
-                }
+    let mut qbbs = [0u64; 4];
+    for bb in &mut qbbs {
+        *bb = read_into_primitive!(reader, u64);
+    }
 
-                buffer.push(policy_data);
+    let stm = read_into_primitive!(reader, u8);
+    let enp_sq = read_into_primitive!(reader, u8);
+    let rights = read_into_primitive!(reader, u8);
+    let halfm = read_into_primitive!(reader, u8);
+    let fullm = read_into_primitive!(reader, u16);
+
+    let mut bbs = [0; 8];
+
+    let blc = qbbs[0];
+    let rqk = qbbs[1];
+    let nbk = qbbs[2];
+    let pbq = qbbs[3];
+
+    let occ = rqk | nbk | pbq;
+    let pnb = occ ^ qbbs[1];
+    let prq = occ ^ qbbs[2];
+    let nrk = occ ^ qbbs[3];
+
+    bbs[0] = occ ^ blc;
+    bbs[1] = blc;
+    bbs[2] = pnb & prq;
+    bbs[3] = pnb & nrk;
+    bbs[4] = pnb & nbk & pbq;
+    bbs[5] = prq & nrk;
+    bbs[6] = pbq & prq & rqk;
+    bbs[7] = nbk & rqk;
+
+    let mut pos = Position::from_raw(
+        bbs,
+        stm > 0,
+        enp_sq,
+        rights,
+        halfm,
+        fullm,
+    );
+
+    let mut rook_files = [[0; 2]; 2];
+    for side in &mut rook_files {
+        for rook in side {
+            *rook = read_into_primitive!(reader, u8);
+        }
+    }
+
+    let castling = Castling::from_raw(&pos, rook_files);
+
+    let _result = read_into_primitive!(reader, u8) as f32 / 2.0;
+
+    loop {
+        let best_move = Move::from(read_into_primitive!(reader, u16));
+
+        if best_move == Move::NULL {
+            break;
+        }
+
+        let _score = f32::from(read_into_primitive!(reader, u16)) / f32::from(u16::MAX);
+
+        let num_moves = usize::from(read_into_primitive!(reader, u8));
+
+        if num_moves > 1 && num_moves <= MAX_MOVES {
+            let mut policy_data = DecompressedData { pos, castling, moves: [(0, 0); MAX_MOVES], num: num_moves };
+
+            let mut count = 0;
+            pos.map_legal_moves(&castling, |mov| {
+                policy_data.moves[count].0 = mov.into();
+                count += 1;
+            });
+
+            assert_eq!(count, num_moves);
+
+            policy_data.moves[..num_moves].sort_by_key(|x| x.0);
+
+            for entry in &mut policy_data.moves[..num_moves] {
+                entry.1 = u16::from(read_into_primitive!(reader, u8));
+            }
+
+            buffer.push(policy_data);
+        } else {
+            for _ in 0..num_moves {
+                let _ = read_into_primitive!(reader, u8);
             }
         }
 
-        pos.make(data.best_move, &castling);
+        pos.make(best_move, &castling);
     }
 }
 
