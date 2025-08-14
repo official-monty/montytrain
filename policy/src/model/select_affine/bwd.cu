@@ -11,9 +11,8 @@ extern "C" __global__ void kernel(
 ) {
     extern __shared__ float sdata[];
 
-    const int loc_in_batch = blockIdx.y;
-    const int loc_in_moves = blockIdx.x;
-    const int tid = threadIdx.x;
+    const int loc_in_batch = blockIdx.x;
+    const int loc_in_moves = threadIdx.x;
     const int locmb = loc_in_batch * 64 + loc_in_moves;
     const int move = moves[locmb];
     
@@ -24,39 +23,24 @@ extern "C" __global__ void kernel(
         const float4* tW = reinterpret_cast<const float4*>(weights + in_size * move);
         const float4* tI = reinterpret_cast<const float4*>(input + in_size * loc_in_batch);
 
-        if (tid == 0) atomicAdd(biases_grad + move, grd);
+        atomicAdd(biases_grad + move, grd);
 
-        for (int idx = tid; idx < in_size / 4; idx += blockDim.x)
+        for (int idx = 0; idx < in_size / 4; idx += 1)
         {
-            const int section = 4 * blockDim.x * (idx / blockDim.x) + tid;
             const float4 ti = tI[idx];
             const float4 tw = tW[idx];
 
-            sdata[4 * tid    ] = ti.x;
-            sdata[4 * tid + 1] = ti.y;
-            sdata[4 * tid + 2] = ti.z;
-            sdata[4 * tid + 3] = ti.w;
-            __syncthreads();
+            float* tWg = weights_grad + in_size * move + 4 * idx;
+            atomicAdd(tWg    , grd * ti.x);
+            atomicAdd(tWg + 1, grd * ti.y);
+            atomicAdd(tWg + 2, grd * ti.z);
+            atomicAdd(tWg + 3, grd * ti.w);
 
-            float* tWg = weights_grad + in_size * move + section;
-            atomicAdd(tWg                 , grd * sdata[tid                 ]);
-            atomicAdd(tWg + blockDim.x    , grd * sdata[tid + blockDim.x    ]);
-            atomicAdd(tWg + blockDim.x * 2, grd * sdata[tid + blockDim.x * 2]);
-            atomicAdd(tWg + blockDim.x * 3, grd * sdata[tid + blockDim.x * 3]);
-            __syncthreads();
-
-            sdata[4 * tid    ] = tw.x;
-            sdata[4 * tid + 1] = tw.y;
-            sdata[4 * tid + 2] = tw.z;
-            sdata[4 * tid + 3] = tw.w;
-            __syncthreads();
-
-            float* tIg = input_grad + in_size * loc_in_batch + section;
-            atomicAdd(tIg                 , grd * sdata[tid                 ]);
-            atomicAdd(tIg + blockDim.x    , grd * sdata[tid + blockDim.x    ]);
-            atomicAdd(tIg + blockDim.x * 2, grd * sdata[tid + blockDim.x * 2]);
-            atomicAdd(tIg + blockDim.x * 3, grd * sdata[tid + blockDim.x * 3]);
-            __syncthreads();
+            float* tIg = input_grad + in_size * loc_in_batch + 4 * idx;
+            atomicAdd(tIg    , grd * tw.x);
+            atomicAdd(tIg + 1, grd * tw.y);
+            atomicAdd(tIg + 2, grd * tw.z);
+            atomicAdd(tIg + 3, grd * tw.w);
         }
     }
 }

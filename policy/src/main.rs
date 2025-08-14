@@ -18,7 +18,7 @@ use bullet_cuda_backend::CudaDevice;
 use crate::data::MontyDataLoader;
 
 fn main() {
-    let hl = 512;
+    let hl = 64;
     let dataloader = MontyDataLoader::new("data/policygen6.binpack", 4096, 4, 4);
 
     let device = CudaDevice::new(0).unwrap();

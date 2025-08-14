@@ -23,9 +23,8 @@ extern "C" __global__ void kernel(
 ) {
     extern __shared__ float sdata[]; 
 
-    const int loc_in_batch = blockIdx.y;
-    const int loc_in_moves = blockIdx.x;
-    const int tid = threadIdx.x;
+    const int loc_in_batch = blockIdx.x;
+    const int loc_in_moves = threadIdx.x;
     const int locmb = loc_in_batch * 64 + loc_in_moves;
     const int move = moves[locmb];
 
@@ -34,33 +33,17 @@ extern "C" __global__ void kernel(
 
     if (move != -1)
     {
-        float local = 0.0F;
-        for (int idx = tid; idx < in_size / 4; idx += blockDim.x)
+        float local = biases[move];
+        for (int idx = 0; idx < in_size / 4; idx += 1)
         {
             const float4 tw = tW[idx];
             const float4 ti = tI[idx];
             local += tw.x * ti.x + tw.y * ti.y + tw.z * ti.z + tw.w * ti.w;
         }
 
-        sdata[tid] = local;
-        __syncthreads();
-
-        if (THREADS >= 1024) { if (tid < 512) sdata[tid] += sdata[tid + 512]; __syncthreads(); }
-        if (THREADS >= 512) { if (tid < 256) sdata[tid] += sdata[tid + 256]; __syncthreads(); }
-        if (THREADS >= 256) { if (tid < 128) sdata[tid] += sdata[tid + 128]; __syncthreads(); }
-        if (THREADS >= 128) { if (tid < 64) sdata[tid] += sdata[tid + 64]; __syncthreads(); }
-
-        if (tid < 32)
-        {
-            warpReduce(sdata, tid);
-        }
-
-        if (tid == 0)
-        {
-            output[locmb] = sdata[0] + biases[move];
-        }
+        output[locmb] = local;
     }
-    else if (tid == 0)
+    else
     {
         output[locmb] = -10000.0F;
     }
