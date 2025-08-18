@@ -1,4 +1,16 @@
 use montyformat::chess::{Attacks, Flag, Move, Piece, Position, Side};
+use montyformat::chess::consts::{IN_BETWEEN, LINE_THROUGH, Rank};
+
+macro_rules! pop_lsb {
+    ($sq:ident, $bb:expr) => {
+        let $sq = ($bb).trailing_zeros() as usize;
+        $bb &= $bb - 1;
+    };
+}
+
+pub trait See {
+    fn see(&self, mov: &Move, threshold: i32) -> bool;
+}
 
 pub const MAX_MOVES: usize = 64;
 pub const INPUT_SIZE: usize = 768 * 4;
@@ -92,8 +104,8 @@ pub fn map_base_inputs<F: FnMut(usize)>(pos: &Position, mut f: F) {
 
 const SEE_VALS: [i32; 8] = [0, 0, 100, 450, 450, 650, 1250, 0];
 
-impl Position {
-    pub fn see(&self, mov: &Move, threshold: i32) -> bool {
+impl See for Position {
+    fn see(&self, mov: &Move, threshold: i32) -> bool {
         let from = mov.src() as usize;
         let to = mov.to() as usize;
         let side = self.stm();
@@ -107,7 +119,28 @@ impl Position {
 
         let from_bb = 1u64 << from;
         let ksq = self.king_sq(side);
-        let pinned = self.pinned();
+        let pinned = {
+            let occ = self.occ();
+            let boys = self.boys();
+            let opps = self.opps();
+            let rq = self.piece(Piece::QUEEN) | self.piece(Piece::ROOK);
+            let bq = self.piece(Piece::QUEEN) | self.piece(Piece::BISHOP);
+            let mut pinned = 0u64;
+
+            let mut pinners = Attacks::xray_rook(ksq, occ, boys) & opps & rq;
+            while pinners != 0 {
+                pop_lsb!(sq, pinners);
+                pinned |= IN_BETWEEN[sq][ksq] & boys;
+            }
+
+            pinners = Attacks::xray_bishop(ksq, occ, boys) & opps & bq;
+            while pinners != 0 {
+                pop_lsb!(sq, pinners);
+                pinned |= IN_BETWEEN[sq][ksq] & boys;
+            }
+
+            pinned
+        };
         if (pinned & from_bb) != 0 && (LINE_THROUGH[ksq][to] & from_bb) == 0 {
             return false;
         }
@@ -141,7 +174,7 @@ impl Position {
                 occ_after |= to_bb;
                 let occ_att = occ_after ^ to_bb;
 
-                let mut pieces_after = self.bb;
+                let mut pieces_after = self.bbs();
                 pieces_after[moved_pc] ^= from_bb;
                 pieces_after[side] ^= from_bb;
                 if captured_pc != Piece::EMPTY {
@@ -197,11 +230,11 @@ impl Position {
             let ep_sq = (to ^ 8) as usize;
             let opp = side ^ 1;
             let mut ep_attackers =
-                Attacks::pawn(ep_sq, side) & self.bb[Piece::PAWN] & self.bb[opp];
+                Attacks::pawn(ep_sq, side) & self.piece(Piece::PAWN) & self.piece(opp);
             if ep_attackers != 0 {
                 let mut occ_after = self.occ();
                 occ_after ^= from_bb | (1u64 << to);
-                let mut pieces_after = self.bb;
+                let mut pieces_after = self.bbs();
                 pieces_after[Piece::PAWN] ^= from_bb | (1u64 << to);
                 pieces_after[side] ^= from_bb | (1u64 << to);
                 let pinned_opp =
@@ -244,7 +277,7 @@ impl Position {
             }
         }
 
-        let mut pieces = self.bb;
+        let mut pieces = self.bbs();
         pieces[moved_pc] &= !from_bb;
         pieces[side] &= !from_bb;
 
