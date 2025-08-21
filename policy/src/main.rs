@@ -18,8 +18,8 @@ use bullet_cuda_backend::CudaDevice;
 use data::MontyDataLoader;
 
 fn main() {
-    let hl = 6144;
-    let dataloader = MontyDataLoader::new("data/policygen6.binpack", 4096, 4);
+    let hl = 16384;
+    let dataloader = MontyDataLoader::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000, 8);
 
     let device = CudaDevice::new(0).unwrap();
 
@@ -30,8 +30,8 @@ fn main() {
 
     let mut trainer = Trainer { optimiser, state: () };
 
-    let save_rate = 30;
-    let end_superbatch = 600;
+    let save_rate = 40;
+    let end_superbatch = 800;
     let initial_lr = 0.001;
     let final_lr = 0.00001;
 

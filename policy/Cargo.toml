@@ -8,4 +8,4 @@ authors.workspace = true
 bullet_core = { package = "bullet_core", git = 'https://github.com/jw1912/bullet', rev = "57b47e115a7b79a52632e16801ff490821b39e16" }
 bullet_cuda_backend = { package = "bullet_cuda_backend", git = 'https://github.com/jw1912/bullet', rev = "57b47e115a7b79a52632e16801ff490821b39e16" }
 cudarc = "=0.16.4"
-montyformat = "0.9.0"
+montyformat = "0.9.1"
