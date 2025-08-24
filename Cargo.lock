@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "acyclib"
 version = "0.2.0"
-source = "git+https://github.com/jw1912/bullet?rev=f7ccab489ab9e76e0446f280edd31a7c40aca28c#f7ccab489ab9e76e0446f280edd31a7c40aca28c"
+source = "git+https://github.com/jw1912/bullet?rev=1ecf94644943dd20f3c86e56c04aaadc0d90bb7f#1ecf94644943dd20f3c86e56c04aaadc0d90bb7f"
 
 [[package]]
 name = "anyhow"
@@ -34,7 +34,7 @@ checksum = "34efbcccd345379ca2868b2b2c9d3782e9cc58ba87bc7d79d5b53d9c9ae6f25d"
 [[package]]
 name = "bullet_core"
 version = "0.1.0"
-source = "git+https://github.com/jw1912/bullet?rev=f7ccab489ab9e76e0446f280edd31a7c40aca28c#f7ccab489ab9e76e0446f280edd31a7c40aca28c"
+source = "git+https://github.com/jw1912/bullet?rev=1ecf94644943dd20f3c86e56c04aaadc0d90bb7f#1ecf94644943dd20f3c86e56c04aaadc0d90bb7f"
 dependencies = [
  "acyclib",
  "rand 0.9.2",
@@ -53,9 +53,9 @@ dependencies = [
 [[package]]
 name = "bullet_hip_backend"
 version = "0.1.0"
-source = "git+https://github.com/jw1912/bullet?rev=f7ccab489ab9e76e0446f280edd31a7c40aca28c#f7ccab489ab9e76e0446f280edd31a7c40aca28c"
+source = "git+https://github.com/jw1912/bullet?rev=1ecf94644943dd20f3c86e56c04aaadc0d90bb7f#1ecf94644943dd20f3c86e56c04aaadc0d90bb7f"
 dependencies = [
- "bullet_core 0.1.0 (git+https://github.com/jw1912/bullet?rev=f7ccab489ab9e76e0446f280edd31a7c40aca28c)",
+ "bullet_core 0.1.0 (git+https://github.com/jw1912/bullet?rev=1ecf94644943dd20f3c86e56c04aaadc0d90bb7f)",
  "cc",
 ]
 
@@ -71,10 +71,10 @@ dependencies = [
 [[package]]
 name = "bullet_lib"
 version = "1.0.0"
-source = "git+https://github.com/jw1912/bullet?rev=f7ccab489ab9e76e0446f280edd31a7c40aca28c#f7ccab489ab9e76e0446f280edd31a7c40aca28c"
+source = "git+https://github.com/jw1912/bullet?rev=1ecf94644943dd20f3c86e56c04aaadc0d90bb7f#1ecf94644943dd20f3c86e56c04aaadc0d90bb7f"
 dependencies = [
- "bullet_core 0.1.0 (git+https://github.com/jw1912/bullet?rev=f7ccab489ab9e76e0446f280edd31a7c40aca28c)",
- "bullet_hip_backend 0.1.0 (git+https://github.com/jw1912/bullet?rev=f7ccab489ab9e76e0446f280edd31a7c40aca28c)",
+ "bullet_core 0.1.0 (git+https://github.com/jw1912/bullet?rev=1ecf94644943dd20f3c86e56c04aaadc0d90bb7f)",
+ "bullet_hip_backend 0.1.0 (git+https://github.com/jw1912/bullet?rev=1ecf94644943dd20f3c86e56c04aaadc0d90bb7f)",
  "bulletformat",
  "montyformat 0.9.2",
  "sfbinpack 0.4.3",
@@ -458,7 +458,7 @@ checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
 name = "value"
 version = "0.1.0"
 dependencies = [
- "bullet_lib 1.0.0 (git+https://github.com/jw1912/bullet?rev=f7ccab489ab9e76e0446f280edd31a7c40aca28c)",
+ "bullet_lib 1.0.0 (git+https://github.com/jw1912/bullet?rev=1ecf94644943dd20f3c86e56c04aaadc0d90bb7f)",
 ]
 
 [[package]]
