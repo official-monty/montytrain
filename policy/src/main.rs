@@ -105,7 +105,11 @@ fn main() {
 fn network(size: usize) -> Graph {
     let builder = NetworkBuilder::default();
 
-    let inputs = builder.new_sparse_input("inputs", Shape::new(inputs::INPUT_SIZE, 1), inputs::MAX_ACTIVE);
+    let inputs = builder.new_sparse_input(
+        "inputs",
+        Shape::new(inputs::INPUT_SIZE, 1),
+        inputs::MAX_ACTIVE,
+    );
     let mask = builder.new_sparse_input("mask", Shape::new(moves::NUM_MOVES, 1), moves::MAX_MOVES);
     let dist = builder.new_dense_input("dist", Shape::new(moves::MAX_MOVES, 1));
 

@@ -20,7 +20,7 @@ use bullet::{
     },
 };
 
-const HIDDEN_SIZE: usize = 3072;
+const HIDDEN_SIZE: usize = 256;
 
 fn main() {
     println!("Attacks:");
@@ -60,7 +60,7 @@ fn main() {
         max_weight: 0.99,
     };
 
-    trainer.set_optimiser_params(optimiser_params);
+    trainer.optimiser.set_params(optimiser_params);
 
     let settings = LocalSettings {
         threads: 8,
@@ -73,13 +73,13 @@ fn main() {
         true
     }
 
-    //let data_loader = loader::MontyBinpackLoader::new("data/datagen19.binpack", 4096, 4, filter);
-    let data_loader = loader::MontyBinpackLoader::new(
-        "/home/privateclient/monty_value_training/interleaved-value.binpack",
-        96000,
-        8,
-        filter,
-    );
+    let data_loader = loader::MontyBinpackLoader::new("data/datagen19.binpack", 4096, 4, filter);
+    //let data_loader = loader::MontyBinpackLoader::new(
+    //    "/home/privateclient/monty_value_training/interleaved-value.binpack",
+    //    96000,
+    //    8,
+    //    filter,
+    //);
 
     trainer.run(&schedule, &settings, &data_loader);
 
