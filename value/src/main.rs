@@ -35,19 +35,19 @@ fn main() {
     let mut trainer = make_trainer::<ThreatInputs>(HIDDEN_SIZE);
 
     let schedule = TrainingSchedule {
-        net_id: "4096EXP".to_string(),
+        net_id: "3072T".to_string(),
         eval_scale: 400.0,
         steps: TrainingSteps {
-            batch_size: 16_384,
-            batches_per_superbatch: 6104,
+            batch_size: 65_536,
+            batches_per_superbatch: 1526,
             start_superbatch: 1,
-            end_superbatch: 3000,
+            end_superbatch: 4000,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
         lr_scheduler: lr::ExponentialDecayLR {
             initial_lr: 0.001,
             final_lr: 0.0000001,
-            final_superbatch: 3000,
+            final_superbatch: 4000,
         },
         save_rate: 100,
     };
@@ -77,7 +77,7 @@ fn main() {
     let data_loader = loader::MontyBinpackLoader::new(
         "/home/privateclient/monty_value_training/interleaved-value.binpack",
         96000,
-        8,
+        2,
         filter,
     );
 
