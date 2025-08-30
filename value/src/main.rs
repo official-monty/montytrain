@@ -41,15 +41,15 @@ fn main() {
             batch_size: 65_536,
             batches_per_superbatch: 1526,
             start_superbatch: 1,
-            end_superbatch: 4000,
+            end_superbatch: 5000,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
         lr_scheduler: lr::ExponentialDecayLR {
             initial_lr: 0.001,
-            final_lr: 0.0000001,
-            final_superbatch: 4000,
+            final_lr: 0.00000001,
+            final_superbatch: 5000,
         },
-        save_rate: 100,
+        save_rate: 200,
     };
 
     let optimiser_params = optimiser::AdamWParams {
@@ -63,7 +63,7 @@ fn main() {
     trainer.optimiser.set_params(optimiser_params);
 
     let settings = LocalSettings {
-        threads: 8,
+        threads: 2,
         test_set: None,
         output_directory: "checkpoints",
         batch_queue_size: 32,
@@ -77,7 +77,7 @@ fn main() {
     let data_loader = loader::MontyBinpackLoader::new(
         "/home/privateclient/monty_value_training/interleaved-value.binpack",
         96000,
-        2,
+        8,
         filter,
     );
 
