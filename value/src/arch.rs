@@ -42,10 +42,7 @@ pub fn make_trainer<T: Default + SparseInputType>(
         .inputs(T::default())
         .optimiser(AdamW)
         .save_format(&[
-            SavedFormat::id("pst").add_transform(|graph, _, weights| {
-                let factoriser = graph.get_weights("pstf").get_dense_vals().unwrap();
-                merge_factoriser(weights, &factoriser, 3)
-            }),
+            SavedFormat::id("pst"),
             SavedFormat::id("l0w")
                 .add_transform({
                     move |graph, _, weights| {
