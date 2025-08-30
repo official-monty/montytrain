@@ -10,6 +10,27 @@ use bullet::{
 
 use crate::input::{NUM_KING_BUCKETS, TOTAL_THREATS};
 
+const PIECE_LEN: usize = 768 * NUM_KING_BUCKETS;
+const L1: usize = 3072;
+
+fn merge_factoriser(mut weights: Vec<f32>, factoriser: &[f32], output_size: usize) -> Vec<f32> {
+    let expanded = factoriser.repeat(NUM_KING_BUCKETS);
+    let input_size = weights.len() / output_size;
+    for row in 0..output_size {
+        let w_start = row * input_size + TOTAL_THREATS;
+        let w_end = w_start + PIECE_LEN;
+        let f_start = row * PIECE_LEN;
+        let f_end = f_start + PIECE_LEN;
+        for (w, &f) in weights[w_start..w_end]
+            .iter_mut()
+            .zip(expanded[f_start..f_end].iter())
+        {
+            *w += f;
+        }
+    }
+    weights
+}
+
 pub fn make_trainer<T: Default + SparseInputType>(
     l1: usize,
 ) -> ValueTrainer<AdamWOptimiser, T, NoOutputBuckets> {
@@ -21,28 +42,16 @@ pub fn make_trainer<T: Default + SparseInputType>(
         .inputs(T::default())
         .optimiser(AdamW)
         .save_format(&[
-            SavedFormat::id("pst"),
+            SavedFormat::id("pst").add_transform(|graph, _, weights| {
+                let factoriser = graph.get_weights("pstf").get_dense_vals().unwrap();
+                merge_factoriser(weights, &factoriser, 3)
+            }),
             SavedFormat::id("l0w")
-                .add_transform(|graph, _, mut weights| {
-                    let factoriser = graph.get_weights("l0f").get_dense_vals().unwrap();
-                    let output_size = factoriser.len() / 768;
-                    let expanded = factoriser.repeat(NUM_KING_BUCKETS);
-                    let piece_len = 768 * NUM_KING_BUCKETS;
-                    let input_size = weights.len() / output_size;
-                    for row in 0..output_size {
-                        let w_start = row * input_size + TOTAL_THREATS;
-                        let w_end = w_start + piece_len;
-                        let f_start = row * piece_len;
-                        let f_end = f_start + piece_len;
-                        for (w, &f) in weights[w_start..w_end]
-                            .iter_mut()
-                            .zip(expanded[f_start..f_end].iter())
-                        {
-                            *w += f;
-                        }
+                .add_transform({
+                    move |graph, _, weights| {
+                        let factoriser = graph.get_weights("l0f").get_dense_vals().unwrap();
+                        merge_factoriser(weights, &factoriser, L1)
                     }
-
-                    weights
                 })
                 .quantise::<i16>(512),
             SavedFormat::id("l0b").quantise::<i16>(512),
