@@ -31,7 +31,7 @@ fn main() {
     println!("Queen  : {}", indices::QUEEN[64]);
     println!("King   : {}", indices::KING[64]);
 
-    println!("Inputs: {}", ThreatInputs.num_inputs());
+    println!("Inputs: {}", ThreatInputs::default().num_inputs());
     let mut trainer = make_trainer::<ThreatInputs>(HIDDEN_SIZE);
 
     let schedule = TrainingSchedule {

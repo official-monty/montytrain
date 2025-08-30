@@ -11,7 +11,22 @@ use bullet::default::{
 use crate::{consts::offsets, threats::map_piece_threat};
 
 const TOTAL_THREATS: usize = 2 * offsets::END;
-const TOTAL: usize = TOTAL_THREATS + 768;
+
+#[rustfmt::skip]
+const BUCKET_LAYOUT: [usize; 32] = [
+    0,  1,  2,  3,
+    4,  5,  6,  7,
+    8,  8,  9,  9,
+    10, 10, 10, 10,
+    11, 11, 11, 11,
+    11, 11, 11, 11,
+    12, 12, 12, 12,
+    12, 12, 12, 12,
+];
+
+const NUM_KING_BUCKETS: usize = inputs::get_num_buckets(&BUCKET_LAYOUT);
+const PIECE_INPUTS: usize = 768 * (NUM_KING_BUCKETS + 1);
+const TOTAL: usize = TOTAL_THREATS + PIECE_INPUTS;
 
 static COUNT: AtomicUsize = AtomicUsize::new(0);
 static SQRED: AtomicUsize = AtomicUsize::new(0);
@@ -34,7 +49,7 @@ pub fn print_feature_stats() {
     println!("Active Features: {mean:.3} +- {pct:.3} (95%)");
 }
 
-fn map_features<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
+fn map_threats<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) -> usize {
     // horiontal mirror
     let ksq = (bbs[0] & bbs[Piece::KING]).trailing_zeros();
     if ksq % 8 > 3 {
@@ -71,8 +86,6 @@ fn map_features<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
                     _ => unreachable!(),
                 } & occ;
 
-                f(TOTAL_THREATS + [0, 384][side] + 64 * (piece - 2) + sq);
-                count += 1;
                 map_bb(threats, |dest| {
                     let enemy = (1 << dest) & opps > 0;
                     if let Some(idx) = map_piece_threat(piece, sq, dest, pieces[dest], enemy) {
@@ -84,16 +97,7 @@ fn map_features<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
         }
     }
 
-    if TRACK {
-        COUNT.fetch_add(count, Ordering::Relaxed);
-        SQRED.fetch_add(count * count, Ordering::Relaxed);
-        let evals = EVALS.fetch_add(1, Ordering::Relaxed);
-        MAX.fetch_max(count, Ordering::Relaxed);
-
-        if (evals + 1) % (16384 * 6104) == 0 {
-            print_feature_stats();
-        }
-    }
+    count
 }
 
 fn map_bb<F: FnMut(usize)>(mut bb: u64, mut f: F) {
@@ -113,8 +117,17 @@ fn flip_horizontal(mut bb: u64) -> u64 {
     ((bb >> 4) & K4) | ((bb & K4) << 4)
 }
 
-#[derive(Clone, Copy, Default)]
-pub struct ThreatInputs;
+#[derive(Clone, Copy)]
+pub struct ThreatInputs {
+    pieces: inputs::ChessBucketsMirrored,
+}
+
+impl Default for ThreatInputs {
+    fn default() -> Self {
+        Self { pieces: inputs::ChessBucketsMirrored::new(BUCKET_LAYOUT) }
+    }
+}
+
 impl inputs::SparseInputType for ThreatInputs {
     type RequiredDataType = ChessBoard;
 
@@ -136,7 +149,22 @@ impl inputs::SparseInputType for ThreatInputs {
             bbs[pt] |= bit;
         }
 
-        map_features(bbs, |stm| f(stm, stm));
+        let threat_count = map_threats(bbs, |stm| f(stm, stm));
+        self.pieces
+            .map_features(pos, |stm, ntm| f(TOTAL_THREATS + stm, TOTAL_THREATS + ntm));
+
+        if TRACK {
+            let piece_count = ((bbs[0] | bbs[1]).count_ones() as usize) * 2;
+            let total = threat_count + piece_count;
+            COUNT.fetch_add(total, Ordering::Relaxed);
+            SQRED.fetch_add(total * total, Ordering::Relaxed);
+            let evals = EVALS.fetch_add(1, Ordering::Relaxed);
+            MAX.fetch_max(total, Ordering::Relaxed);
+
+            if (evals + 1) % (16384 * 6104) == 0 {
+                print_feature_stats();
+            }
+        }
     }
 
     fn shorthand(&self) -> String {
