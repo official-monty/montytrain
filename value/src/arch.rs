@@ -10,8 +10,7 @@ use bullet::{
 
 use crate::input::{NUM_KING_BUCKETS, TOTAL_THREATS};
 
-const FACTORISED_PIECE_LEN: usize = 768;
-const PIECE_LEN: usize = FACTORISED_PIECE_LEN * NUM_KING_BUCKETS;
+const PIECE_LEN: usize = 768 * NUM_KING_BUCKETS;
 const L1: usize = 3072;
 
 fn merge_factoriser(mut weights: Vec<f32>, factoriser: &[f32], output_size: usize) -> Vec<f32> {
@@ -43,15 +42,14 @@ pub fn make_trainer<T: Default + SparseInputType>(
         .inputs(T::default())
         .optimiser(AdamW)
         .save_format(&[
-            SavedFormat::id("pst").add_transform(|_, _, mut weights| {
-                let factoriser = weights.split_off(weights.len() - 3 * FACTORISED_PIECE_LEN);
+            SavedFormat::id("pst").add_transform(|graph, _, weights| {
+                let factoriser = graph.get_weights("pstf").get_dense_vals().unwrap();
                 merge_factoriser(weights, &factoriser, 3)
             }),
             SavedFormat::id("l0w")
                 .add_transform({
-                    move |_, _, mut weights| {
-                        let factoriser =
-                            weights.split_off(weights.len() - L1 * FACTORISED_PIECE_LEN);
+                    move |graph, _, weights| {
+                        let factoriser = graph.get_weights("l0f").get_dense_vals().unwrap();
                         merge_factoriser(weights, &factoriser, L1)
                     }
                 })
