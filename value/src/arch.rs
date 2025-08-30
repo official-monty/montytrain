@@ -8,6 +8,8 @@ use bullet::{
     value::{NoOutputBuckets, ValueTrainer, ValueTrainerBuilder},
 };
 
+use crate::input::{NUM_KING_BUCKETS, TOTAL_THREATS};
+
 pub fn make_trainer<T: Default + SparseInputType>(
     l1: usize,
 ) -> ValueTrainer<AdamWOptimiser, T, NoOutputBuckets> {
@@ -20,7 +22,29 @@ pub fn make_trainer<T: Default + SparseInputType>(
         .optimiser(AdamW)
         .save_format(&[
             SavedFormat::id("pst"),
-            SavedFormat::id("l0w").quantise::<i16>(512),
+            SavedFormat::id("l0w")
+                .add_transform(|graph, _, mut weights| {
+                    let factoriser = graph.get_weights("l0f").get_dense_vals().unwrap();
+                    let output_size = factoriser.len() / 768;
+                    let expanded = factoriser.repeat(NUM_KING_BUCKETS);
+                    let piece_len = 768 * NUM_KING_BUCKETS;
+                    let input_size = weights.len() / output_size;
+                    for row in 0..output_size {
+                        let w_start = row * input_size + TOTAL_THREATS;
+                        let w_end = w_start + piece_len;
+                        let f_start = row * piece_len;
+                        let f_end = f_start + piece_len;
+                        for (w, &f) in weights[w_start..w_end]
+                            .iter_mut()
+                            .zip(expanded[f_start..f_end].iter())
+                        {
+                            *w += f;
+                        }
+                    }
+
+                    weights
+                })
+                .quantise::<i16>(512),
             SavedFormat::id("l0b").quantise::<i16>(512),
             SavedFormat::id("l1w").quantise::<i16>(1024).transpose(),
             SavedFormat::id("l1b").quantise::<i16>(1024),

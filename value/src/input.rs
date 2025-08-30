@@ -10,7 +10,7 @@ use bullet::default::{
 
 use crate::{consts::offsets, threats::map_piece_threat};
 
-const TOTAL_THREATS: usize = 2 * offsets::END;
+pub const TOTAL_THREATS: usize = 2 * offsets::END;
 
 #[rustfmt::skip]
 const BUCKET_LAYOUT: [usize; 32] = [
@@ -24,7 +24,7 @@ const BUCKET_LAYOUT: [usize; 32] = [
     12, 12, 12, 12,
 ];
 
-const NUM_KING_BUCKETS: usize = inputs::get_num_buckets(&BUCKET_LAYOUT);
+pub const NUM_KING_BUCKETS: usize = inputs::get_num_buckets(&BUCKET_LAYOUT);
 const PIECE_INPUTS: usize = 768 * (NUM_KING_BUCKETS + 1);
 const TOTAL: usize = TOTAL_THREATS + PIECE_INPUTS;
 
