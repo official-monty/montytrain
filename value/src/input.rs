@@ -5,13 +5,27 @@ use bullet::default::{
         bulletformat::ChessBoard,
         montyformat::chess::{Attacks, Piece, Side},
     },
-    inputs,
+    inputs::{self, Chess768, Factorised, Factorises},
 };
 
 use crate::{consts::offsets, threats::map_piece_threat};
 
+pub const NUM_INPUT_BUCKETS: usize = 13;
+
+#[rustfmt::skip]
+const BUCKET_LAYOUT: [usize; 32] = [
+    0,  1,  2,  3,
+    4,  5,  6,  7,
+    8,  8,  9,  9,
+    10, 10, 10, 10,
+    11, 11, 11, 11,
+    11, 11, 11, 11,
+    12, 12, 12, 12,
+    12, 12, 12, 12,
+];
+
 const TOTAL_THREATS: usize = 2 * offsets::END;
-const TOTAL: usize = TOTAL_THREATS + 768;
+const TOTAL: usize = TOTAL_THREATS + 768 * NUM_INPUT_BUCKETS;
 
 static COUNT: AtomicUsize = AtomicUsize::new(0);
 static SQRED: AtomicUsize = AtomicUsize::new(0);
@@ -34,7 +48,7 @@ pub fn print_feature_stats() {
     println!("Active Features: {mean:.3} +- {pct:.3} (95%)");
 }
 
-fn map_features<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
+fn map_features_bucketed<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
     // horiontal mirror
     let ksq = (bbs[0] & bbs[Piece::KING]).trailing_zeros();
     if ksq % 8 > 3 {
@@ -71,7 +85,6 @@ fn map_features<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
                     _ => unreachable!(),
                 } & occ;
 
-                f(TOTAL_THREATS + [0, 384][side] + 64 * (piece - 2) + sq);
                 count += 1;
                 map_bb(threats, |dest| {
                     let enemy = (1 << dest) & opps > 0;
@@ -113,9 +126,22 @@ fn flip_horizontal(mut bb: u64) -> u64 {
     ((bb >> 4) & K4) | ((bb & K4) << 4)
 }
 
-#[derive(Clone, Copy, Default)]
-pub struct ThreatInputs;
-impl inputs::SparseInputType for ThreatInputs {
+#[derive(Clone, Copy, Debug)]
+pub struct ThreatInputsBucketsMirrored {
+    buckets: [usize; 64],
+}
+
+impl Default for ThreatInputsBucketsMirrored {
+    fn default() -> Self {
+        let mut expanded = [0; 64];
+        for (idx, elem) in expanded.iter_mut().enumerate() {
+            *elem = BUCKET_LAYOUT[(idx / 8) * 4 + [0, 1, 2, 3, 3, 2, 1, 0][idx % 8]];
+        }
+        Self { buckets: expanded }
+    }
+}
+
+impl inputs::SparseInputType for ThreatInputsBucketsMirrored {
     type RequiredDataType = ChessBoard;
 
     fn num_inputs(&self) -> usize {
@@ -127,6 +153,20 @@ impl inputs::SparseInputType for ThreatInputs {
     }
 
     fn map_features<F: FnMut(usize, usize)>(&self, pos: &Self::RequiredDataType, mut f: F) {
+        let get = |ksq| {
+            let flip = if ksq % 8 > 3 { 7 } else { 0 };
+            let bucket = 768 * self.buckets[ksq as usize];
+            (flip, bucket)
+        };
+        let (stm_flip, stm_bucket) = get(pos.our_ksq());
+        let (ntm_flip, ntm_bucket) = get(pos.opp_ksq());
+        Chess768.map_features(pos, |stm, ntm| {
+            f(
+                TOTAL_THREATS + stm_bucket + (stm ^ stm_flip),
+                TOTAL_THREATS + ntm_bucket + (ntm ^ ntm_flip),
+            )
+        });
+
         let mut bbs = [0; 8];
         for (pc, sq) in pos.into_iter() {
             let pt = 2 + usize::from(pc & 7);
@@ -136,14 +176,93 @@ impl inputs::SparseInputType for ThreatInputs {
             bbs[pt] |= bit;
         }
 
-        map_features(bbs, |stm| f(stm, stm));
+        let mut stm_count = 0;
+        let mut stm_feats = [0; 128];
+        map_features_bucketed(bbs, |stm| {
+            stm_feats[stm_count] = stm;
+            stm_count += 1;
+        });
+
+        bbs.swap(0, 1);
+        for bb in &mut bbs {
+            *bb = bb.swap_bytes();
+        }
+
+        let mut ntm_count = 0;
+        let mut ntm_feats = [0; 128];
+        map_features_bucketed(bbs, |ntm| {
+            ntm_feats[ntm_count] = ntm;
+            ntm_count += 1;
+        });
+
+        assert_eq!(stm_count, ntm_count);
+
+        for (&stm, &ntm) in stm_feats.iter().zip(ntm_feats.iter()).take(stm_count) {
+            f(stm, ntm);
+        }
     }
 
     fn shorthand(&self) -> String {
-        format!("{TOTAL}")
+        format!("{TOTAL_THREATS}+{}x{NUM_INPUT_BUCKETS}", Chess768.shorthand())
     }
 
     fn description(&self) -> String {
-        "Threat inputs".to_string()
+        "Threat inputs bucketed mirrored".to_string()
+    }
+}
+
+impl Factorises<ThreatInputsBucketsMirrored> for Chess768 {
+    fn derive_feature(&self, _: &ThreatInputsBucketsMirrored, feat: usize) -> Option<usize> {
+        if feat >= TOTAL_THREATS {
+            Some((feat - TOTAL_THREATS) % 768)
+        } else {
+            None
+        }
+    }
+}
+
+type ThreatInputsFactorisedBucketsMirrored = Factorised<ThreatInputsBucketsMirrored, Chess768>;
+
+#[derive(Clone, Copy)]
+pub struct ThreatInputs(ThreatInputsFactorisedBucketsMirrored);
+
+impl Default for ThreatInputs {
+    fn default() -> Self {
+        Self(ThreatInputsFactorisedBucketsMirrored::from_parts(
+            ThreatInputsBucketsMirrored::default(),
+            Chess768,
+        ))
+    }
+}
+
+impl inputs::SparseInputType for ThreatInputs {
+    type RequiredDataType = ChessBoard;
+
+    fn num_inputs(&self) -> usize {
+        self.0.num_inputs()
+    }
+
+    fn max_active(&self) -> usize {
+        self.0.max_active()
+    }
+
+    fn map_features<F: FnMut(usize, usize)>(&self, pos: &Self::RequiredDataType, f: F) {
+        self.0.map_features(pos, f)
+    }
+
+    fn shorthand(&self) -> String {
+        self.0.shorthand()
+    }
+
+    fn description(&self) -> String {
+        self.0.description()
+    }
+
+    fn is_factorised(&self) -> bool {
+        self.0.is_factorised()
+    }
+
+    fn merge_factoriser(&self, unmerged: Vec<f32>) -> Vec<f32> {
+        self.0.merge_factoriser(unmerged)
     }
 }

@@ -8,6 +8,8 @@ use bullet::{
     value::{NoOutputBuckets, ValueTrainer, ValueTrainerBuilder},
 };
 
+use crate::input::NUM_INPUT_BUCKETS;
+
 pub fn make_trainer<T: Default + SparseInputType>(
     l1: usize,
 ) -> ValueTrainer<AdamWOptimiser, T, NoOutputBuckets> {
@@ -20,8 +22,19 @@ pub fn make_trainer<T: Default + SparseInputType>(
         .optimiser(AdamW)
         .save_format(&[
             SavedFormat::id("pst"),
-            SavedFormat::id("l0w").quantise::<i16>(512),
-            SavedFormat::id("l0b").quantise::<i16>(512),
+            SavedFormat::id("l0w")
+                .add_transform(|graph, _, mut weights| {
+                    let factoriser = graph.get_weights("l0f").get_dense_vals().unwrap();
+                    let expanded = factoriser.repeat(NUM_INPUT_BUCKETS);
+
+                    for (i, &j) in weights.iter_mut().zip(expanded.iter()) {
+                        *i += j;
+                    }
+
+                    weights
+                })
+                .quantise::<i16>(255),
+            SavedFormat::id("l0b").quantise::<i16>(255),
             SavedFormat::id("l1w").quantise::<i16>(1024).transpose(),
             SavedFormat::id("l1b").quantise::<i16>(1024),
             SavedFormat::id("l2w"),
