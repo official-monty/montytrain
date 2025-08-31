@@ -10,8 +10,20 @@ use bullet::default::{
 
 use crate::{consts::offsets, threats::map_piece_threat};
 
+const BUCKET_LAYOUT: [usize; 32] = [
+    0, 1, 2, 3,
+    4, 5, 6, 7,
+    8, 8, 9, 9,
+    10, 10, 10, 10,
+    11, 11, 11, 11,
+    11, 11, 11, 11,
+    12, 12, 12, 12,
+    12, 12, 12, 12,
+];
+
 const TOTAL_THREATS: usize = 2 * offsets::END;
-const TOTAL: usize = TOTAL_THREATS + 768;
+const KING_BUCKETS: usize = 13;
+const TOTAL: usize = TOTAL_THREATS + 768 * KING_BUCKETS;
 
 static COUNT: AtomicUsize = AtomicUsize::new(0);
 static SQRED: AtomicUsize = AtomicUsize::new(0);
@@ -35,13 +47,20 @@ pub fn print_feature_stats() {
 }
 
 fn map_features<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
-    // horiontal mirror
-    let ksq = (bbs[0] & bbs[Piece::KING]).trailing_zeros();
+    // horizontal mirror
+    let ksq = (bbs[0] & bbs[Piece::KING]).trailing_zeros() as usize;
     if ksq % 8 > 3 {
         for bb in bbs.iter_mut() {
             *bb = flip_horizontal(*bb);
         }
     };
+
+    let wk = (bbs[0] & bbs[Piece::KING]).trailing_zeros() as usize;
+    let bk = (bbs[1] & bbs[Piece::KING]).trailing_zeros() as usize;    
+    let king_buckets = [
+        BUCKET_LAYOUT[4 * (wk >> 3) + (wk & 3)],
+        BUCKET_LAYOUT[4 * (bk >> 3) + (bk & 3)],
+    ];
 
     let mut pieces = [13; 64];
     for side in [Side::WHITE, Side::BLACK] {
@@ -71,7 +90,8 @@ fn map_features<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
                     _ => unreachable!(),
                 } & occ;
 
-                f(TOTAL_THREATS + [0, 384][side] + 64 * (piece - 2) + sq);
+                let bucket = king_buckets[side];
+                f(TOTAL_THREATS + bucket * 768 + [0, 384][side] + 64 * (piece - 2) + sq);
                 count += 1;
                 map_bb(threats, |dest| {
                     let enemy = (1 << dest) & opps > 0;
