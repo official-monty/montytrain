@@ -33,8 +33,7 @@ pub fn make_trainer<T: Default + SparseInputType>(
         ])
         .build_custom(|builder, inputs, targets, output_buckets| {
             let num_buckets = PieceThreatCount::BUCKETS;
-            let pst =
-                builder.new_weights("pst", Shape::new(num_buckets * 3, num_inputs), InitSettings::Zeroed);
+            let pst = builder.new_weights("pst", Shape::new(3, num_inputs), InitSettings::Zeroed);
             let l0 = builder.new_affine("l0", num_inputs, l1);
             let l1 = builder.new_affine("l1", l1 / 2, num_buckets * 16);
             let l2 = builder.new_affine("l2", 16, num_buckets * 128);
@@ -46,8 +45,7 @@ pub fn make_trainer<T: Default + SparseInputType>(
             let l1 = l1.forward(l0).select(output_buckets).screlu();
             let l2 = l2.forward(l1).select(output_buckets).screlu();
             let l3 = l3.forward(l2).select(output_buckets);
-            let pst = pst.matmul(inputs).select(output_buckets);
-            let out = l3 + pst;
+            let out = l3 + pst.matmul(inputs);
 
             let ones = builder.new_constant(Shape::new(1, 3), &[1.0; 3]);
             let loss = ones.matmul(out.softmax_crossentropy_loss(targets));
