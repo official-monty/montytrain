@@ -2,7 +2,6 @@ mod arch;
 mod consts;
 mod input;
 mod threats;
-mod piecethreatbuckets;
 
 use arch::make_trainer;
 use consts::indices;

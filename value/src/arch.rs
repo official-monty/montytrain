@@ -1,4 +1,3 @@
-use crate::piecethreatbuckets::PieceThreatCount;
 use bullet::{
     game::inputs::SparseInputType,
     nn::{
@@ -6,19 +5,18 @@ use bullet::{
         InitSettings, Shape,
     },
     trainer::save::SavedFormat,
-    value::{ValueTrainer, ValueTrainerBuilder},
+    value::{NoOutputBuckets, ValueTrainer, ValueTrainerBuilder},
 };
 
 pub fn make_trainer<T: Default + SparseInputType>(
     l1: usize,
-) -> ValueTrainer<AdamWOptimiser, T, PieceThreatCount> {
+) -> ValueTrainer<AdamWOptimiser, T, NoOutputBuckets> {
     let inputs = T::default();
     let num_inputs = inputs.num_inputs();
 
     ValueTrainerBuilder::default()
         .wdl_output()
         .inputs(T::default())
-        .output_buckets(PieceThreatCount)
         .optimiser(AdamW)
         .save_format(&[
             SavedFormat::id("pst"),
@@ -31,20 +29,19 @@ pub fn make_trainer<T: Default + SparseInputType>(
             SavedFormat::id("l3w"),
             SavedFormat::id("l3b"),
         ])
-        .build_custom(|builder, inputs, targets, output_buckets| {
-            let num_buckets = PieceThreatCount::BUCKETS;
+        .build_custom(|builder, inputs, targets| {
             let pst = builder.new_weights("pst", Shape::new(3, num_inputs), InitSettings::Zeroed);
             let l0 = builder.new_affine("l0", num_inputs, l1);
-            let l1 = builder.new_affine("l1", l1 / 2, num_buckets * 16);
-            let l2 = builder.new_affine("l2", 16, num_buckets * 128);
-            let l3 = builder.new_affine("l3", 128, num_buckets * 3);
+            let l1 = builder.new_affine("l1", l1 / 2, 16);
+            let l2 = builder.new_affine("l2", 16, 128);
+            let l3 = builder.new_affine("l3", 128, 3);
 
             l0.init_with_effective_input_size(128);
 
             let l0 = l0.forward(inputs).crelu().pairwise_mul();
-            let l1 = l1.forward(l0).select(output_buckets).screlu();
-            let l2 = l2.forward(l1).select(output_buckets).screlu();
-            let l3 = l3.forward(l2).select(output_buckets);
+            let l1 = l1.forward(l0).screlu();
+            let l2 = l2.forward(l1).screlu();
+            let l3 = l3.forward(l2);
             let out = l3 + pst.matmul(inputs);
 
             let ones = builder.new_constant(Shape::new(1, 3), &[1.0; 3]);
