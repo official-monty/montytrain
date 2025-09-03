@@ -10,8 +10,9 @@ use bullet::default::{
 
 use crate::{consts::offsets, threats::map_piece_threat};
 
+const FIFTY_MR_BUCKETS: usize = 12;
 const TOTAL_THREATS: usize = 2 * offsets::END;
-const TOTAL: usize = TOTAL_THREATS + 768;
+const TOTAL: usize = TOTAL_THREATS + 768 + FIFTY_MR_BUCKETS;
 
 static COUNT: AtomicUsize = AtomicUsize::new(0);
 static SQRED: AtomicUsize = AtomicUsize::new(0);
@@ -137,6 +138,24 @@ impl inputs::SparseInputType for ThreatInputs {
         }
 
         map_features(bbs, |stm| f(stm, stm));
+
+        let halfm = pos.extra()[0] as usize;
+        let bucket = match halfm {
+            0 => 0,
+            1 => 1,
+            2 => 2,
+            3..=4 => 3,
+            5..=8 => 4,
+            9..=12 => 5,
+            13..=17 => 6,
+            18..=24 => 7,
+            25..=34 => 8,
+            35..=49 => 9,
+            50..=69 => 10,
+            _ => 11,
+        };
+        let idx = TOTAL_THREATS + 768 + bucket;
+        f(idx, idx);
     }
 
     fn shorthand(&self) -> String {
