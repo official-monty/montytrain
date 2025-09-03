@@ -20,10 +20,10 @@ pub fn make_trainer<T: Default + SparseInputType>(
         .optimiser(AdamW)
         .save_format(&[
             SavedFormat::id("pst"),
-            SavedFormat::id("l0w").quantise::<i16>(255),
-            SavedFormat::id("l0b").quantise::<i16>(255),
-            SavedFormat::id("l1w").quantise::<i16>(128).transpose(),
-            SavedFormat::id("l1b").quantise::<i16>(128),
+            SavedFormat::id("l0w").quantise::<i8>(128).round(),
+            SavedFormat::id("l0b").quantise::<i8>(128).round(),
+            SavedFormat::id("l1w").quantise::<i16>(128).transpose().round(),
+            SavedFormat::id("l1b").quantise::<i16>(128).round(),
         ])
         .build_custom(|builder, inputs, targets| {
             let pst = builder.new_weights("pst", Shape::new(3, num_inputs), InitSettings::Zeroed);
