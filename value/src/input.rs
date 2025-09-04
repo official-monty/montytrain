@@ -23,7 +23,8 @@ const BUCKET_LAYOUT: [usize; 32] = [
 
 const TOTAL_THREATS: usize = 2 * offsets::END;
 const KING_BUCKETS: usize = 13;
-const TOTAL: usize = TOTAL_THREATS + 768 * KING_BUCKETS;
+const PST_FACTOR_SIZE: usize = 768;
+const TOTAL: usize = TOTAL_THREATS + 768 * KING_BUCKETS + PST_FACTOR_SIZE;
 
 static COUNT: AtomicUsize = AtomicUsize::new(0);
 static SQRED: AtomicUsize = AtomicUsize::new(0);
@@ -91,7 +92,10 @@ fn map_features<F: FnMut(usize)>(mut bbs: [u64; 8], mut f: F) {
                 } & occ;
 
                 let bucket = king_buckets[side];
-                f(TOTAL_THREATS + bucket * 768 + [0, 384][side] + 64 * (piece - 2) + sq);
+                let base = [0, 384][side] + 64 * (piece - 2) + sq;
+                f(TOTAL_THREATS + bucket * 768 + base);
+                count += 1;
+                f(TOTAL_THREATS + KING_BUCKETS * 768 + base);
                 count += 1;
                 map_bb(threats, |dest| {
                     let enemy = (1 << dest) & opps > 0;

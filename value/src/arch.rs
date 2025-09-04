@@ -20,8 +20,8 @@ pub fn make_trainer<T: Default + SparseInputType>(
         .optimiser(AdamW)
         .save_format(&[
             SavedFormat::id("pst"),
-            SavedFormat::id("l0w").quantise::<i16>(512),
-            SavedFormat::id("l0b").quantise::<i16>(512),
+            SavedFormat::id("l0w").quantise::<i8>(128),
+            SavedFormat::id("l0b").quantise::<i8>(128),
             SavedFormat::id("l1w").quantise::<i16>(1024).transpose(),
             SavedFormat::id("l1b").quantise::<i16>(1024),
             SavedFormat::id("l2w"),
