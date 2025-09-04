@@ -36,7 +36,7 @@ pub fn make_trainer<T: Default + SparseInputType>(
             let l2 = builder.new_affine("l2", 16, 128);
             let l3 = builder.new_affine("l3", 128, 3);
 
-            l0.init_with_effective_input_size(128);
+            l0.init_with_effective_input_size(160);
 
             let l0 = l0.forward(inputs).crelu().pairwise_mul();
             let l1 = l1.forward(l0).screlu();
