@@ -98,18 +98,28 @@ pub fn prepare(data: &[DecompressedData], threads: usize) -> PreparedBatchHost {
     unsafe {
         prep.inputs.insert(
             "inputs".to_string(),
-            HostMatrix::Sparse(HostSparseMatrix::new(inputs, batch_size, Shape::new(INPUT_SIZE, 1), MAX_ACTIVE_BASE)),
+            HostMatrix::Sparse(HostSparseMatrix::new(
+                inputs,
+                Some(batch_size),
+                Shape::new(INPUT_SIZE, 1),
+                MAX_ACTIVE_BASE,
+            )),
         );
 
         prep.inputs.insert(
             "moves".to_string(),
-            HostMatrix::Sparse(HostSparseMatrix::new(moves, batch_size, Shape::new(NUM_MOVES_INDICES, 1), MAX_MOVES)),
+            HostMatrix::Sparse(HostSparseMatrix::new(
+                moves,
+                Some(batch_size),
+                Shape::new(NUM_MOVES_INDICES, 1),
+                MAX_MOVES,
+            )),
         );
     }
 
     prep.inputs.insert(
         "targets".to_string(),
-        HostMatrix::Dense(HostDenseMatrix::new(dist, batch_size, Shape::new(MAX_MOVES, 1))),
+        HostMatrix::Dense(HostDenseMatrix::new(dist, Some(batch_size), Shape::new(MAX_MOVES, 1))),
     );
 
     prep

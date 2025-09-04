@@ -1,5 +1,5 @@
+use montyformat::chess::consts::{Rank, IN_BETWEEN, LINE_THROUGH};
 use montyformat::chess::{Attacks, Flag, Move, Piece, Position, Side};
-use montyformat::chess::consts::{IN_BETWEEN, LINE_THROUGH, Rank};
 
 macro_rules! pop_lsb {
     ($sq:ident, $bb:expr) => {
@@ -111,11 +111,7 @@ impl See for Position {
         let side = self.stm();
 
         let moved_pc = self.get_pc(1 << from);
-        let captured_pc = if mov.is_en_passant() {
-            Piece::PAWN
-        } else {
-            self.get_pc(1 << to)
-        };
+        let captured_pc = if mov.is_en_passant() { Piece::PAWN } else { self.get_pc(1 << to) };
 
         let from_bb = 1u64 << from;
         let ksq = self.king_sq(side);
@@ -202,8 +198,7 @@ impl See for Position {
                     return true;
                 }
 
-                let promo_attackers =
-                    pieces_after[Piece::PAWN] & pieces_after[opp] & Rank::PEN[opp];
+                let promo_attackers = pieces_after[Piece::PAWN] & pieces_after[opp] & Rank::PEN[opp];
                 if (Attacks::pawn(to, side) & promo_attackers) == 0 {
                     return true;
                 }
@@ -227,20 +222,17 @@ impl See for Position {
         }
 
         if mov.flag() == Flag::DBL {
-            let ep_sq = (to ^ 8) as usize;
+            let ep_sq = to ^ 8;
             let opp = side ^ 1;
-            let mut ep_attackers =
-                Attacks::pawn(ep_sq, side) & self.piece(Piece::PAWN) & self.piece(opp);
+            let mut ep_attackers = Attacks::pawn(ep_sq, side) & self.piece(Piece::PAWN) & self.piece(opp);
             if ep_attackers != 0 {
                 let mut occ_after = self.occ();
                 occ_after ^= from_bb | (1u64 << to);
                 let mut pieces_after = self.bbs();
                 pieces_after[Piece::PAWN] ^= from_bb | (1u64 << to);
                 pieces_after[side] ^= from_bb | (1u64 << to);
-                let pinned_opp =
-                    recompute_pins(&pieces_after, occ_after, opp, self.king_sq(opp));
-                ep_attackers &=
-                    !pinned_opp | (LINE_THROUGH[self.king_sq(opp)][ep_sq] & pinned_opp);
+                let pinned_opp = recompute_pins(&pieces_after, occ_after, opp, self.king_sq(opp));
+                ep_attackers &= !pinned_opp | (LINE_THROUGH[self.king_sq(opp)][ep_sq] & pinned_opp);
                 if ep_attackers != 0 {
                     let mut legal = false;
                     let mut attackers = ep_attackers;
@@ -282,11 +274,7 @@ impl See for Position {
         pieces[side] &= !from_bb;
 
         if captured_pc != Piece::EMPTY {
-            let cap_sq = if mov.is_en_passant() {
-                (to ^ 8) as usize
-            } else {
-                to
-            };
+            let cap_sq = if mov.is_en_passant() { to ^ 8 } else { to };
             let cap_bb = 1u64 << cap_sq;
             pieces[captured_pc] &= !cap_bb;
             pieces[side ^ 1] &= !cap_bb;
@@ -351,13 +339,13 @@ impl See for Position {
             let mut pinners = Attacks::xray_rook(ksq, occ, boys) & opps & rq;
             while pinners > 0 {
                 pop_lsb!(sq, pinners);
-                pinned |= IN_BETWEEN[usize::from(sq)][ksq] & boys;
+                pinned |= IN_BETWEEN[sq][ksq] & boys;
             }
 
             pinners = Attacks::xray_bishop(ksq, occ, boys) & opps & bq;
             while pinners > 0 {
                 pop_lsb!(sq, pinners);
-                pinned |= IN_BETWEEN[usize::from(sq)][ksq] & boys;
+                pinned |= IN_BETWEEN[sq][ksq] & boys;
             }
 
             pinned
@@ -374,14 +362,8 @@ impl See for Position {
             opp_pinned: u64,
             to: usize,
         ) -> Option<(usize, u64)> {
-            const ORDER: [usize; 6] = [
-                Piece::PAWN,
-                Piece::KNIGHT,
-                Piece::BISHOP,
-                Piece::ROOK,
-                Piece::QUEEN,
-                Piece::KING,
-            ];
+            const ORDER: [usize; 6] =
+                [Piece::PAWN, Piece::KNIGHT, Piece::BISHOP, Piece::ROOK, Piece::QUEEN, Piece::KING];
 
             let mut global_fallback: Option<(usize, u64)> = None;
 
@@ -404,11 +386,7 @@ impl See for Position {
 
                     // check if moving this piece reveals a new slider attack on `to`
                     let occ_after = *occ ^ bit;
-                    let side = if pieces[Side::WHITE] & bit != 0 {
-                        Side::WHITE
-                    } else {
-                        Side::BLACK
-                    };
+                    let side = if pieces[Side::WHITE] & bit != 0 { Side::WHITE } else { Side::BLACK };
                     let opp = side ^ 1;
                     let bishops = (pieces[Piece::BISHOP] | pieces[Piece::QUEEN]) & pieces[opp];
                     let rooks = (pieces[Piece::ROOK] | pieces[Piece::QUEEN]) & pieces[opp];
@@ -426,6 +404,7 @@ impl See for Position {
                     // only legal reply and ignoring them can dramatically skew the SEE.
                     let promo_pawn = pc == Piece::PAWN && (bit & Rank::PEN[side]) != 0;
 
+                    #[allow(clippy::nonminimal_bool)]
                     if (!releases_pin || promo_pawn) && (!opens_xray || promo_pawn) {
                         // best option: neither releases a pin nor opens an x-ray, or
                         // we must consider the promotion capture regardless
@@ -483,20 +462,11 @@ impl See for Position {
             };
 
             let our_attackers = attackers & pieces[stm] & allowed;
-            let opp_pinned = if stm == Side::WHITE {
-                pinned_b
-            } else {
-                pinned_w
-            };
+            let opp_pinned = if stm == Side::WHITE { pinned_b } else { pinned_w };
             let opp_king_sq = self.king_sq(stm ^ 1);
-            let Some((mut attacker_pc, from_bit)) = remove_least(
-                &mut pieces,
-                our_attackers,
-                &mut occ,
-                opp_king_sq,
-                opp_pinned,
-                to,
-            ) else {
+            let Some((mut attacker_pc, from_bit)) =
+                remove_least(&mut pieces, our_attackers, &mut occ, opp_king_sq, opp_pinned, to)
+            else {
                 break;
             };
 
@@ -506,11 +476,7 @@ impl See for Position {
                 let occ_after = occ | to_bb;
                 pieces_after[attacker_pc] |= to_bb;
                 pieces_after[stm] |= to_bb;
-                let ksq = if attacker_pc == Piece::KING {
-                    to
-                } else {
-                    self.king_sq(stm)
-                };
+                let ksq = if attacker_pc == Piece::KING { to } else { self.king_sq(stm) };
 
                 let queens = pieces_after[Piece::QUEEN];
                 let rooks = pieces_after[Piece::ROOK] | queens;
@@ -540,9 +506,7 @@ impl See for Position {
             }
 
             let capture_val = SEE_VALS[attacker_pc];
-            if attacker_pc == Piece::PAWN
-                && ((stm == Side::WHITE && to >= 56) || (stm == Side::BLACK && to < 8))
-            {
+            if attacker_pc == Piece::PAWN && ((stm == Side::WHITE && to >= 56) || (stm == Side::BLACK && to < 8)) {
                 attacker_pc = Piece::QUEEN;
             }
 
@@ -550,10 +514,7 @@ impl See for Position {
             let rooks = pieces[Piece::ROOK] | queens;
             let bishops = pieces[Piece::BISHOP] | queens;
 
-            if attacker_pc == Piece::PAWN
-                || attacker_pc == Piece::BISHOP
-                || attacker_pc == Piece::QUEEN
-            {
+            if attacker_pc == Piece::PAWN || attacker_pc == Piece::BISHOP || attacker_pc == Piece::QUEEN {
                 attackers |= Attacks::bishop(to, occ) & bishops;
             }
             if attacker_pc == Piece::ROOK || attacker_pc == Piece::QUEEN {

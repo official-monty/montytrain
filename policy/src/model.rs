@@ -3,7 +3,7 @@ mod select_affine;
 use bullet_core::{
     graph::{
         builder::{GraphBuilder, Shape},
-        Graph, NodeId, NodeIdTy,
+        Graph, GraphNodeId, GraphNodeIdTy,
     },
     trainer::dataloader::PreparedBatchDevice,
 };
@@ -15,7 +15,7 @@ use crate::{
     inputs::{INPUT_SIZE, MAX_ACTIVE_BASE, MAX_MOVES, NUM_MOVES_INDICES},
 };
 
-pub fn make(device: CudaDevice, hl: usize) -> (Graph<CudaDevice>, NodeId) {
+pub fn make(device: CudaDevice, hl: usize) -> (Graph<CudaDevice>, GraphNodeId) {
     let builder = GraphBuilder::default();
 
     let inputs = builder.new_sparse_input("inputs", Shape::new(INPUT_SIZE, 1), MAX_ACTIVE_BASE);
@@ -33,11 +33,11 @@ pub fn make(device: CudaDevice, hl: usize) -> (Graph<CudaDevice>, NodeId) {
     let loss = logits.softmax_crossentropy_loss(targets);
     let _ = ones.matmul(loss);
 
-    let node = NodeId::new(loss.annotated_node().idx, NodeIdTy::Ancillary(0));
+    let node = GraphNodeId::new(loss.annotated_node().idx, GraphNodeIdTy::Ancillary(0));
     (builder.build(device), node)
 }
 
-pub fn eval(graph: &mut Graph<CudaDevice>, node: NodeId, fen: &str) {
+pub fn eval(graph: &mut Graph<CudaDevice>, node: GraphNodeId, fen: &str) {
     let mut castling = Castling::default();
     let pos = Position::parse_fen(fen, &mut castling);
 

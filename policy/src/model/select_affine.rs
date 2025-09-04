@@ -1,18 +1,22 @@
 use bullet_core::{
+    acyclib::graph::NodeId,
     device::OperationError,
+    function::{DeviceFunction, DeviceOperation, MaybeUpdateBatchSize},
     graph::{
         builder::{Affine, GraphBuilderNode, Shape},
-        instruction::{GraphInstruction, MaybeUpdateBatchSize},
         ir::{
             node::AnnotatedNode,
-            operation::{util, GraphIROperation, GraphIROperationCompilable},
-            BackendMarker, GraphIR, GraphIRError, GraphIRNodeInfo,
+            operation::{util, GraphIROperationBase, GraphIROperationCompilable},
+            BackendMarker, GraphIR, GraphIRError,
         },
-        Graph, GraphFunction, NodeId, NodeIdTy,
+        Graph, GraphNodeIdTy,
     },
+    tensor::TensorRef,
 };
-use bullet_cuda_backend::{CudaDevice, CudaError, CudaMarker};
-use cudarc::driver::{LaunchConfig, PushKernelArg};
+use bullet_cuda_backend::{
+    cudarc::driver::{LaunchConfig, PushKernelArg},
+    CudaDevice, CudaError, CudaMarker,
+};
 
 use crate::inputs::{MAX_MOVES, NUM_MOVES_INDICES};
 
@@ -39,7 +43,7 @@ impl SelectAffine {
     }
 }
 
-impl<B: BackendMarker> GraphIROperation<B> for SelectAffine {
+impl<B: BackendMarker> GraphIROperationBase<B> for SelectAffine {
     fn nodes(&self) -> Vec<AnnotatedNode> {
         vec![self.indices, self.input, self.weights, self.biases]
     }
@@ -61,34 +65,33 @@ impl<B: BackendMarker> GraphIROperation<B> for SelectAffine {
 }
 
 impl GraphIROperationCompilable<CudaMarker> for SelectAffine {
-    fn forward_pass(&self, _node_info: &GraphIRNodeInfo, output_node: usize) -> GraphFunction<CudaDevice> {
-        let input = NodeId::new(self.input.idx, NodeIdTy::Values);
-        let indices = NodeId::new(self.indices.idx, NodeIdTy::Values);
-        let weights = NodeId::new(self.weights.idx, NodeIdTy::Values);
-        let biases = NodeId::new(self.biases.idx, NodeIdTy::Values);
-        let output = NodeId::new(output_node, NodeIdTy::Values);
+    fn forward_pass(&self, graph: &Graph<CudaDevice>, output_node: NodeId) -> DeviceFunction<CudaDevice> {
+        let input = graph.get_ref(self.input.idx, GraphNodeIdTy::Values);
+        let indices = graph.get_ref(self.indices.idx, GraphNodeIdTy::Values);
+        let weights = graph.get_ref(self.weights.idx, GraphNodeIdTy::Values);
+        let biases = graph.get_ref(self.biases.idx, GraphNodeIdTy::Values);
+        let output = graph.get_ref(output_node, GraphNodeIdTy::Values);
 
-        let mut func = GraphFunction::default();
+        let mut func = DeviceFunction::default();
 
-        func.push(MaybeUpdateBatchSize { input, output });
+        func.push(MaybeUpdateBatchSize { input: input.clone(), output: output.clone() });
         func.push(SelectAffineFwd { indices, input, weights, biases, output });
 
         func
     }
 
-    fn backward_pass(&self, _node_info: &GraphIRNodeInfo, output_node: usize) -> GraphFunction<CudaDevice> {
-        let input = NodeId::new(self.input.idx, NodeIdTy::Values);
-        let indices = NodeId::new(self.indices.idx, NodeIdTy::Values);
-        let weights = NodeId::new(self.weights.idx, NodeIdTy::Values);
+    fn backward_pass(&self, graph: &Graph<CudaDevice>, output_node: NodeId) -> DeviceFunction<CudaDevice> {
+        let input = graph.get_ref(self.input.idx, GraphNodeIdTy::Values);
+        let indices = graph.get_ref(self.indices.idx, GraphNodeIdTy::Values);
+        let weights = graph.get_ref(self.weights.idx, GraphNodeIdTy::Values);
+        let input_grad = graph.get_ref(self.input.idx, GraphNodeIdTy::Gradients);
+        let weights_grad = graph.get_ref(self.weights.idx, GraphNodeIdTy::Gradients);
+        let biases_grad = graph.get_ref(self.biases.idx, GraphNodeIdTy::Gradients);
+        let output_grad = graph.get_ref(output_node, GraphNodeIdTy::Gradients);
 
-        let input_grad = NodeId::new(self.input.idx, NodeIdTy::Gradients);
-        let weights_grad = NodeId::new(self.weights.idx, NodeIdTy::Gradients);
-        let biases_grad = NodeId::new(self.biases.idx, NodeIdTy::Gradients);
-        let output_grad = NodeId::new(output_node, NodeIdTy::Gradients);
+        let mut func = DeviceFunction::default();
 
-        let mut func = GraphFunction::default();
-
-        func.push(MaybeUpdateBatchSize { input: output_grad, output: input_grad });
+        func.push(MaybeUpdateBatchSize { input: output_grad.clone(), output: input_grad.clone() });
         func.push(SelectAffineBwd { input, weights, indices, input_grad, weights_grad, biases_grad, output_grad });
 
         func
@@ -97,29 +100,24 @@ impl GraphIROperationCompilable<CudaMarker> for SelectAffine {
 
 #[derive(Debug)]
 struct SelectAffineFwd {
-    weights: NodeId,
-    biases: NodeId,
-    input: NodeId,
-    indices: NodeId,
-    output: NodeId,
+    weights: TensorRef<CudaDevice>,
+    biases: TensorRef<CudaDevice>,
+    input: TensorRef<CudaDevice>,
+    indices: TensorRef<CudaDevice>,
+    output: TensorRef<CudaDevice>,
 }
 
-impl GraphInstruction<CudaDevice> for SelectAffineFwd {
-    fn execute(&self, graph: &Graph<CudaDevice>) -> Result<(), OperationError<CudaError>> {
-        let input = graph.get(self.input)?;
-        let input = input.dense()?;
+impl DeviceOperation<CudaDevice> for SelectAffineFwd {
+    fn opname(&self) -> String {
+        "SelectAffineFwd".to_string()
+    }
 
-        let weights = graph.get(self.weights)?;
-        let weights = weights.dense()?;
-
-        let biases = graph.get(self.biases)?;
-        let biases = biases.dense()?;
-
-        let indices = graph.get(self.indices)?;
-        let indices = indices.sparse()?;
-
-        let mut output = graph.get_mut(self.output)?;
-        let output = output.dense_mut()?;
+    fn execute(&self) -> Result<(), OperationError<CudaError>> {
+        let input = self.input.dense();
+        let weights = self.weights.dense();
+        let biases = self.biases.dense();
+        let indices = self.indices.sparse();
+        let mut output = self.output.dense_mut();
 
         let single_size = input.single_size();
         let batch_size = input.batch_size();
@@ -172,38 +170,28 @@ impl GraphInstruction<CudaDevice> for SelectAffineFwd {
 
 #[derive(Debug)]
 struct SelectAffineBwd {
-    input: NodeId,
-    weights: NodeId,
-    indices: NodeId,
-    output_grad: NodeId,
-
-    input_grad: NodeId,
-    weights_grad: NodeId,
-    biases_grad: NodeId,
+    input: TensorRef<CudaDevice>,
+    weights: TensorRef<CudaDevice>,
+    indices: TensorRef<CudaDevice>,
+    output_grad: TensorRef<CudaDevice>,
+    input_grad: TensorRef<CudaDevice>,
+    weights_grad: TensorRef<CudaDevice>,
+    biases_grad: TensorRef<CudaDevice>,
 }
 
-impl GraphInstruction<CudaDevice> for SelectAffineBwd {
-    fn execute(&self, graph: &Graph<CudaDevice>) -> Result<(), OperationError<CudaError>> {
-        let output_grad = graph.get(self.output_grad)?;
-        let output_grad = output_grad.dense()?;
+impl DeviceOperation<CudaDevice> for SelectAffineBwd {
+    fn opname(&self) -> String {
+        "SelectAffineBwd".to_string()
+    }
 
-        let indices = graph.get(self.indices)?;
-        let indices = indices.sparse()?;
-
-        let input = graph.get(self.input)?;
-        let input = input.dense()?;
-
-        let weights = graph.get(self.weights)?;
-        let weights = weights.dense()?;
-
-        let mut input_grad = graph.get_mut(self.input_grad)?;
-        let input_grad = input_grad.dense_mut()?;
-
-        let mut weights_grad = graph.get_mut(self.weights_grad)?;
-        let weights_grad = weights_grad.dense_mut()?;
-
-        let mut biases_grad = graph.get_mut(self.biases_grad)?;
-        let biases_grad = biases_grad.dense_mut()?;
+    fn execute(&self) -> Result<(), OperationError<CudaError>> {
+        let output_grad = self.output_grad.dense();
+        let indices = self.indices.sparse();
+        let input = self.input.dense();
+        let weights = self.weights.dense();
+        let mut input_grad = self.input_grad.dense_mut();
+        let mut weights_grad = self.weights_grad.dense_mut();
+        let mut biases_grad = self.biases_grad.dense_mut();
 
         let single_size = input_grad.single_size();
         let batch_size = input_grad.batch_size();
