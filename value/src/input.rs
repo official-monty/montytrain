@@ -124,7 +124,7 @@ pub struct ThreatInputs {
 
 impl Default for ThreatInputs {
     fn default() -> Self {
-        Self { pieces: inputs::ChessBucketsMirroredFactorised::new(BUCKET_LAYOUT) }
+        Self { pieces: inputs::ChessBucketsMirrored::new(BUCKET_LAYOUT) }
     }
 }
 
