@@ -2,6 +2,7 @@ use crate::piecethreatbuckets::PieceThreatCount;
 use bullet::{
     game::formats::bulletformat::ChessBoard,
     game::inputs::SparseInputType,
+    game::outputs::OutputBuckets,
     nn::{
         optimiser::{AdamW, AdamWOptimiser},
         InitSettings, Shape,
@@ -32,10 +33,13 @@ pub fn make_trainer<T: Default + SparseInputType<RequiredDataType = ChessBoard>>
             SavedFormat::id("l3w"),
             SavedFormat::id("l3b"),
         ])
-        .build_custom(|builder, inputs, targets, output_buckets| {
+        .build_custom(|builder, (inputs, output_buckets), targets| {
             let num_buckets = PieceThreatCount::BUCKETS;
-            let pst =
-                builder.new_weights("pst", Shape::new(num_buckets * 3, num_inputs), InitSettings::Zeroed);
+            let pst = builder.new_weights(
+                "pst",
+                Shape::new(num_buckets * 3, num_inputs),
+                InitSettings::Zeroed,
+            );
             let l0 = builder.new_affine("l0", num_inputs, l1);
             let l1 = builder.new_affine("l1", l1 / 2, num_buckets * 128);
             let l2 = builder.new_affine("l2", 128, num_buckets * 128);
