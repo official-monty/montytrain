@@ -1,5 +1,5 @@
 use bullet::game::formats::bulletformat::ChessBoard;
-use bullet::game::inputs::{OutputBuckets, SparseInputType};
+use bullet::game::outputs::OutputBuckets;
 use crate::consts::offsets;
 use crate::input::ThreatInputs;
 

@@ -1,5 +1,6 @@
 use crate::piecethreatbuckets::PieceThreatCount;
 use bullet::{
+    game::formats::bulletformat::ChessBoard,
     game::inputs::SparseInputType,
     nn::{
         optimiser::{AdamW, AdamWOptimiser},
@@ -9,7 +10,7 @@ use bullet::{
     value::{ValueTrainer, ValueTrainerBuilder},
 };
 
-pub fn make_trainer<T: Default + SparseInputType>(
+pub fn make_trainer<T: Default + SparseInputType<RequiredDataType = ChessBoard>>(
     l1: usize,
 ) -> ValueTrainer<AdamWOptimiser, T, PieceThreatCount> {
     let inputs = T::default();
