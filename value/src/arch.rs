@@ -32,14 +32,17 @@ pub fn make_trainer<T: Default + SparseInputType>(
         .build_custom(|builder, inputs, targets| {
             let pst = builder.new_weights("pst", Shape::new(3, num_inputs), InitSettings::Zeroed);
             let l0 = builder.new_affine("l0", num_inputs, l1);
-            let l1 = builder.new_affine("l1", l1 / 2, 16);
-            let l2 = builder.new_affine("l2", 16, 128);
+            let l1 = builder.new_affine("l1", l1 / 2, 768);
+            let l2 = builder.new_affine("l2", 768, 128);
             let l3 = builder.new_affine("l3", 128, 3);
 
             l0.init_with_effective_input_size(128);
 
             let l0 = l0.forward(inputs).crelu().pairwise_mul();
+            let psqt_start = num_inputs - 768;
+            let psqt_mask = inputs.slice_rows(psqt_start, num_inputs).to_dense();
             let l1 = l1.forward(l0).screlu();
+            let l1 = l1.concat(psqt_mask).pairwise_mul();
             let l2 = l2.forward(l1).screlu();
             let l3 = l3.forward(l2);
             let out = l3 + pst.matmul(inputs);
