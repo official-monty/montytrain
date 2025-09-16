@@ -35,25 +35,39 @@ fn main() {
     let mut trainer = make_trainer::<ThreatInputs>(HIDDEN_SIZE);
 
     let schedule = TrainingSchedule {
-        net_id: "4096EXP".to_string(),
+        net_id: "3072T".to_string(),
         eval_scale: 400.0,
         steps: TrainingSteps {
-            batch_size: 16_384,
-            batches_per_superbatch: 6104,
+            batch_size: 65_536,
+            batches_per_superbatch: 1526,
             start_superbatch: 1,
-            end_superbatch: 3000,
+            end_superbatch: 4000,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
-        lr_scheduler: lr::ExponentialDecayLR { initial_lr: 0.001, final_lr: 0.0000001, final_superbatch: 3000 },
-        save_rate: 100,
+        lr_scheduler: lr::ExponentialDecayLR {
+            initial_lr: 0.001,
+            final_lr: 0.0000001,
+            final_superbatch: 4000,
+        },
+        save_rate: 200,
     };
 
-    let optimiser_params =
-        optimiser::AdamWParams { decay: 0.01, beta1: 0.9, beta2: 0.999, min_weight: -0.99, max_weight: 0.99 };
+    let optimiser_params = optimiser::AdamWParams {
+        decay: 0.01,
+        beta1: 0.9,
+        beta2: 0.999,
+        min_weight: -0.99,
+        max_weight: 0.99,
+    };
 
-    trainer.set_optimiser_params(optimiser_params);
+    trainer.optimiser.set_params(optimiser_params);
 
-    let settings = LocalSettings { threads: 8, test_set: None, output_directory: "checkpoints", batch_queue_size: 32 };
+    let settings = LocalSettings {
+        threads: 2,
+        test_set: None,
+        output_directory: "checkpoints",
+        batch_queue_size: 32,
+    };
 
     fn filter(_: &Position, _: Move, _: i16, _: f32) -> bool {
         true

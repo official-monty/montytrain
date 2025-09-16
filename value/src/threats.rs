@@ -24,7 +24,7 @@ const fn offset_mapping<const N: usize>(a: [usize; N]) -> [usize; 12] {
     let mut i = 0;
     while i < N {
         res[a[i] - 2] = i;
-        res[a[i] + 4] = i;
+        res[a[i] + 4] = i + N;
         i += 1;
     }
 
@@ -40,9 +40,11 @@ fn map_pawn_threat(src: usize, dest: usize, target: usize, enemy: bool) -> Optio
     if MAP[target] == usize::MAX || (enemy && dest > src && target_is(target, Piece::PAWN)) {
         None
     } else {
-        let diff = if dest > src { dest - src } else { src - dest };
-        let attack = if diff == 7 { 0 } else { 1 } + 2 * (src % 8) - 1;
-        let threat = offsets::PAWN + MAP[target] * indices::PAWN + (src / 8) * 14 + attack;
+        let up = usize::from(dest > src);
+        let diff = dest.abs_diff(src);
+        let id = if diff == [9, 7][up] { 0 } else { 1 };
+        let attack = 2 * (src % 8) + id - 1;
+        let threat = offsets::PAWN + MAP[target] * indices::PAWN + (src / 8 - 1) * 14 + attack;
 
         assert!(threat < offsets::KNIGHT, "{threat}");
 
