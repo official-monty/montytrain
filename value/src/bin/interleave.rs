@@ -73,10 +73,7 @@ fn main() -> std::io::Result<()> {
         if remaining / INTERVAL < prev {
             prev = remaining / INTERVAL;
             let written = total - remaining;
-            print!(
-                "Written {written}/{total} Bytes ({:.2}%)\r",
-                written as f64 / total as f64 * 100.0
-            );
+            print!("Written {written}/{total} Bytes ({:.2}%)\r", written as f64 / total as f64 * 100.0);
             let _ = std::io::stdout().flush();
         }
     }
@@ -89,10 +86,7 @@ struct RandU64(u64);
 impl Default for RandU64 {
     fn default() -> Self {
         Self(
-            (std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("valid")
-                .as_nanos()
+            (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("valid").as_nanos()
                 & 0xFFFF_FFFF_FFFF_FFFF) as u64,
         )
     }

@@ -75,12 +75,7 @@ fn main() {
     report(&lock.join().unwrap(), &timer);
 }
 
-fn convert_buffer(
-    threads: usize,
-    sender: &SyncSender<Vec<ChessBoard>>,
-    games: &[Vec<u8>],
-    stats: &mut [Stats],
-) {
+fn convert_buffer(threads: usize, sender: &SyncSender<Vec<ChessBoard>>, games: &[Vec<u8>], stats: &mut [Stats]) {
     let chunk_size = games.len().div_ceil(threads);
 
     std::thread::scope(|s| {
@@ -123,9 +118,7 @@ fn convert(sender: &SyncSender<Vec<ChessBoard>>, game_bytes: &[u8], stats: &mut 
         }
 
         if write {
-            buf.push(
-                ChessBoard::from_raw(pos.bbs(), pos.stm(), result.score, game.result).unwrap(),
-            );
+            buf.push(ChessBoard::from_raw(pos.bbs(), pos.stm(), result.score, game.result).unwrap());
         } else {
             stats.filtered += 1;
         }
@@ -163,9 +156,6 @@ fn report(stats: &[Stats], timer: &Instant) {
     println!(" - Captures: {caps}");
     println!(" - Scores  : {scores}");
     println!("Remaining: {}", positions - filtered);
-    println!(
-        "Speed: {:.0}k/sec",
-        (positions / 1000) as f64 / timer.elapsed().as_secs_f64()
-    );
+    println!("Speed: {:.0}k/sec", (positions / 1000) as f64 / timer.elapsed().as_secs_f64());
     println!("---------------------");
 }

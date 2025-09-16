@@ -3,7 +3,7 @@ use std::{
     io::{BufReader, BufWriter, Write},
 };
 
-use bullet::default::formats::montyformat::{FastDeserialise, MontyFormat};
+use montyformat::{FastDeserialise, MontyFormat};
 
 fn main() -> std::io::Result<()> {
     let folder_path = "/home/privateclient/monty_value_training/monty-policy-data"; // Specify the folder to scan
@@ -22,8 +22,8 @@ fn main() -> std::io::Result<()> {
         })
         .collect();
 
-    println!("Writing to {:#?}", output);
-    println!("Reading from:\n{:#?}", inputs);
+    println!("Writing to {output:#?}");
+    println!("Reading from:\n{inputs:#?}");
     let mut streams = Vec::new();
     let mut total = 0;
 
@@ -73,10 +73,7 @@ fn main() -> std::io::Result<()> {
         if remaining / INTERVAL < prev {
             prev = remaining / INTERVAL;
             let written = total - remaining;
-            print!(
-                "Written {written}/{total} Bytes ({:.2}%)\r",
-                written as f64 / total as f64 * 100.0
-            );
+            print!("Written {written}/{total} Bytes ({:.2}%)\r", written as f64 / total as f64 * 100.0);
             let _ = std::io::stdout().flush();
         }
     }
@@ -89,10 +86,7 @@ struct RandU64(u64);
 impl Default for RandU64 {
     fn default() -> Self {
         Self(
-            (std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("valid")
-                .as_nanos()
+            (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("valid").as_nanos()
                 & 0xFFFF_FFFF_FFFF_FFFF) as u64,
         )
     }
