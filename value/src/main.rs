@@ -20,7 +20,7 @@ use bullet::{
     value::loader,
 };
 
-const HIDDEN_SIZE: usize = 3072;
+const HIDDEN_SIZE: usize = 8192;
 
 fn main() {
     println!("Attacks:");
@@ -41,13 +41,13 @@ fn main() {
             batch_size: 65_536,
             batches_per_superbatch: 1526,
             start_superbatch: 1,
-            end_superbatch: 4000,
+            end_superbatch: 12000,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 1.0 },
         lr_scheduler: lr::ExponentialDecayLR {
             initial_lr: 0.001,
             final_lr: 0.0000001,
-            final_superbatch: 4000,
+            final_superbatch: 12000,
         },
         save_rate: 200,
     };
@@ -66,7 +66,7 @@ fn main() {
         threads: 2,
         test_set: None,
         output_directory: "checkpoints",
-        batch_queue_size: 32,
+        batch_queue_size: 64,
     };
 
     fn filter(_: &Position, _: Move, _: i16, _: f32) -> bool {
@@ -75,8 +75,8 @@ fn main() {
 
     //let data_loader = loader::MontyBinpackLoader::new("data/datagen19.binpack", 4096, 4, filter);
     let data_loader = loader::MontyBinpackLoader::new(
-        "/home/privateclient/monty_value_training/interleaved-value.binpack",
-        96000,
+        "/mnt/Array55T_remote/viren/interleaved-value.binpack",
+        192000,
         8,
         filter,
     );
