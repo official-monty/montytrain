@@ -8,16 +8,16 @@ use consts::indices;
 use input::ThreatInputs;
 
 use bullet::{
+    game::{
+        formats::montyformat::chess::{Move, Position},
+        inputs::SparseInputType,
+    },
     nn::optimiser,
     trainer::{
-        default::{
-            formats::montyformat::chess::{Move, Position},
-            inputs::SparseInputType,
-            loader,
-        },
         schedule::{lr, wdl, TrainingSchedule, TrainingSteps},
         settings::LocalSettings,
     },
+    value::loader,
 };
 
 const HIDDEN_SIZE: usize = 3072;

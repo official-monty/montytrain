@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-use bullet::default::formats::{
+use bullet::game::formats::{
     bulletformat::{BulletFormat, ChessBoard},
     montyformat::{FastDeserialise, MontyValueFormat},
 };

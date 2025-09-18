@@ -1,4 +1,4 @@
-use bullet::default::formats::montyformat::chess::Piece;
+use bullet::game::formats::montyformat::chess::Piece;
 
 use crate::consts::{attacks, indices, offsets};
 

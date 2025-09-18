@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use bullet::default::{
+use bullet::game::{
     formats::{
         bulletformat::ChessBoard,
         montyformat::chess::{Attacks, Piece, Side},

@@ -5,4 +5,4 @@ edition = "2021"
 authors.workspace = true
 
 [dependencies]
-bullet = { package = "bullet_lib", git = 'https://github.com/jw1912/bullet', rev = "1ecf94644943dd20f3c86e56c04aaadc0d90bb7f" }
+bullet = { package = "bullet_lib", git = "https://github.com/jw1912/bullet", branch = "main" }
