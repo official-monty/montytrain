@@ -41,8 +41,8 @@ pub fn make_trainer<T: Default + SparseInputType<RequiredDataType = ChessBoard>>
                 InitSettings::Zeroed,
             );
             let l0 = builder.new_affine("l0", num_inputs, l1);
-            let l1 = builder.new_affine("l1", l1 / 2, num_buckets * 128);
-            let l2 = builder.new_affine("l2", 128, num_buckets * 128);
+            let l1 = builder.new_affine("l1", l1 / 2, num_buckets * 16);
+            let l2 = builder.new_affine("l2", 16, num_buckets * 128);
             let l3 = builder.new_affine("l3", 128, num_buckets * 3);
 
             l0.init_with_effective_input_size(128);
