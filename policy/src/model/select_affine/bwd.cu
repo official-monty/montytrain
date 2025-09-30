@@ -1,6 +1,10 @@
+#ifndef STUFF
+#define IN_SIZE 1024
+#endif
+
+constexpr int in_size = IN_SIZE;
+
 extern "C" __global__ void kernel(
-    const int in_size,
-    const int batch_size,
     const float* weights,
     const float* input,
     const int* moves,
@@ -11,6 +15,7 @@ extern "C" __global__ void kernel(
 ) {
     extern __shared__ float sdata[];
 
+    const int batch_size = gridDim.y;
     const int loc_in_batch = blockIdx.y;
     const int loc_in_moves = blockIdx.x;
     const int tid = threadIdx.x;

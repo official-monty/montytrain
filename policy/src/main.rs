@@ -2,13 +2,13 @@ pub mod data;
 pub mod inputs;
 pub mod model;
 
-use bullet_core::{
+use acyclib::{
     device::Device,
-    optimiser::{
-        adam::{AdamW, AdamWParams},
-        Optimiser,
-    },
     trainer::{
+        optimiser::{
+            adam::{AdamW, AdamWParams},
+            Optimiser,
+        },
         schedule::{TrainingSchedule, TrainingSteps},
         Trainer,
     },
@@ -26,7 +26,7 @@ fn main() {
     let (graph, node) = model::make(device, hl);
 
     let params = AdamWParams { decay: 0.01, beta1: 0.9, beta2: 0.999, min_weight: -0.99, max_weight: 0.99 };
-    let optimiser = Optimiser::<_, AdamW<_>>::new(graph, params).unwrap();
+    let optimiser = Optimiser::<_, _, AdamW<_>>::new(graph, params).unwrap();
 
     let mut trainer = Trainer { optimiser, state: () };
 

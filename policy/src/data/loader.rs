@@ -1,5 +1,5 @@
-use bullet_core::{
-    graph::builder::Shape,
+use acyclib::{
+    device::tensor::Shape,
     trainer::{
         dataloader::{DataLoader, HostDenseMatrix, HostMatrix, HostSparseMatrix, PreparedBatchHost},
         DataLoadingError,

@@ -1,10 +1,8 @@
 mod select_affine;
 
-use bullet_core::{
-    graph::{
-        builder::{GraphBuilder, Shape},
-        Graph, GraphNodeId, GraphNodeIdTy,
-    },
+use acyclib::{
+    device::tensor::Shape,
+    graph::{builder::GraphBuilder, Graph, GraphNodeId, GraphNodeIdTy},
     trainer::dataloader::PreparedBatchDevice,
 };
 use bullet_cuda_backend::CudaDevice;
@@ -53,7 +51,7 @@ pub fn eval(graph: &mut Graph<CudaDevice>, node: GraphNodeId, fen: &str) {
 
     let data = prepare(&[point], 1);
 
-    let mut on_device = PreparedBatchDevice::new(graph.device(), &data).unwrap();
+    let mut on_device = PreparedBatchDevice::new(vec![graph.device()], &data).unwrap();
 
     on_device.load_into_graph(graph).unwrap();
 

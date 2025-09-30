@@ -1,6 +1,10 @@
-#ifndef THREADS
+#ifndef STUFF
 #define THREADS 512
+#define IN_SIZE 1024
 #endif
+
+constexpr int threads = THREADS;
+constexpr int in_size = IN_SIZE;
 
 __device__ void warpReduce(volatile float* sdata, int tid)
 {
@@ -13,8 +17,6 @@ __device__ void warpReduce(volatile float* sdata, int tid)
 }
 
 extern "C" __global__ void kernel(
-    const int in_size,
-    const int batch_size,
     const float* weights,
     const float* biases,
     const float* input,
@@ -23,6 +25,7 @@ extern "C" __global__ void kernel(
 ) {
     extern __shared__ float sdata[]; 
 
+    const int batch_size = gridDim.y;
     const int loc_in_batch = blockIdx.y;
     const int loc_in_moves = blockIdx.x;
     const int tid = threadIdx.x;
@@ -45,10 +48,10 @@ extern "C" __global__ void kernel(
         sdata[tid] = local;
         __syncthreads();
 
-        if (THREADS >= 1024) { if (tid < 512) sdata[tid] += sdata[tid + 512]; __syncthreads(); }
-        if (THREADS >= 512) { if (tid < 256) sdata[tid] += sdata[tid + 256]; __syncthreads(); }
-        if (THREADS >= 256) { if (tid < 128) sdata[tid] += sdata[tid + 128]; __syncthreads(); }
-        if (THREADS >= 128) { if (tid < 64) sdata[tid] += sdata[tid + 64]; __syncthreads(); }
+        if (threads >= 1024) { if (tid < 512) sdata[tid] += sdata[tid + 512]; __syncthreads(); }
+        if (threads >= 512) { if (tid < 256) sdata[tid] += sdata[tid + 256]; __syncthreads(); }
+        if (threads >= 256) { if (tid < 128) sdata[tid] += sdata[tid + 128]; __syncthreads(); }
+        if (threads >= 128) { if (tid < 64) sdata[tid] += sdata[tid + 64]; __syncthreads(); }
 
         if (tid < 32)
         {

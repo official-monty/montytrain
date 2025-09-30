@@ -1,9 +1,11 @@
-use bullet_core::{
-    acyclib::graph::NodeId,
-    device::OperationError,
-    function::{DeviceFunction, DeviceOperation, MaybeUpdateBatchSize},
+use acyclib::{
+    dag::NodeId,
+    device::{
+        function::{DeviceFunction, MaybeUpdateBatchSize},
+        tensor::Shape,
+    },
     graph::{
-        builder::{Affine, GraphBuilderNode, Shape},
+        builder::{Affine, GraphBuilderNode},
         ir::{
             node::AnnotatedNode,
             operation::{util, GraphIROperationBase, GraphIROperationCompilable},
@@ -11,11 +13,10 @@ use bullet_core::{
         },
         Graph, GraphNodeIdTy,
     },
-    tensor::TensorRef,
 };
 use bullet_cuda_backend::{
-    cudarc::driver::{LaunchConfig, PushKernelArg},
-    CudaDevice, CudaError, CudaMarker,
+    kernel::{Expr, Kernel, KernelArgs, KernelInput},
+    CudaDevice, CudaMarker,
 };
 
 use crate::inputs::{MAX_MOVES, NUM_MOVES_INDICES};
@@ -75,7 +76,41 @@ impl GraphIROperationCompilable<CudaMarker> for SelectAffine {
         let mut func = DeviceFunction::default();
 
         func.push(MaybeUpdateBatchSize { input: input.clone(), output: output.clone() });
-        func.push(SelectAffineFwd { indices, input, weights, biases, output });
+
+        let single_size = input.single_size();
+        let batch_size = Expr::Var;
+        let threads = (single_size / 4).min(512) as i32;
+        let grid_dim = [Expr::Const(64), batch_size, Expr::Const(1)];
+        let block_dim = [threads, 1, 1].map(Expr::Const);
+        let shared_mem_bytes = Expr::Const(4 * threads);
+
+        assert!((threads as u32).is_power_of_two(), "hl size must be a power of 2");
+        assert_eq!(MAX_MOVES, 64);
+
+        let layout = None;
+        let mutable = false;
+
+        let inputs = vec![
+            KernelInput::Slice { slice: weights, layout, mutable, batched: false, shape: self.weights.shape },
+            KernelInput::Slice { slice: biases, layout, mutable, batched: false, shape: self.biases.shape },
+            KernelInput::Slice { slice: input, layout, mutable, batched: true, shape: self.input.shape },
+            KernelInput::Slice { slice: indices, layout: Some(64), mutable, batched: true, shape: self.indices.shape },
+            KernelInput::Slice { slice: output, layout, mutable: true, batched: true, shape: Shape::new(MAX_MOVES, 1) },
+        ];
+
+        let args = KernelArgs { inputs, block_dim, grid_dim, shared_mem_bytes };
+
+        let code = include_str!("select_affine/fwd.cu")
+            .lines()
+            .skip(5)
+            .map(|x| format!("{x}\n"))
+            .collect::<String>()
+            .replace("THREADS", &threads.to_string())
+            .replace("IN_SIZE", &single_size.to_string());
+
+        let kernel = unsafe { Kernel::new("SelectAffineFwd".to_string(), code, args) };
+
+        func.push(kernel.unwrap());
 
         func
     }
@@ -92,150 +127,48 @@ impl GraphIROperationCompilable<CudaMarker> for SelectAffine {
         let mut func = DeviceFunction::default();
 
         func.push(MaybeUpdateBatchSize { input: output_grad.clone(), output: input_grad.clone() });
-        func.push(SelectAffineBwd { input, weights, indices, input_grad, weights_grad, biases_grad, output_grad });
 
-        func
-    }
-}
-
-#[derive(Debug)]
-struct SelectAffineFwd {
-    weights: TensorRef<CudaDevice>,
-    biases: TensorRef<CudaDevice>,
-    input: TensorRef<CudaDevice>,
-    indices: TensorRef<CudaDevice>,
-    output: TensorRef<CudaDevice>,
-}
-
-impl DeviceOperation<CudaDevice> for SelectAffineFwd {
-    fn opname(&self) -> String {
-        "SelectAffineFwd".to_string()
-    }
-
-    fn execute(&self) -> Result<(), OperationError<CudaError>> {
-        let input = self.input.dense();
-        let weights = self.weights.dense();
-        let biases = self.biases.dense();
-        let indices = self.indices.sparse();
-        let mut output = self.output.dense_mut();
+        assert_eq!(MAX_MOVES, 64);
 
         let single_size = input.single_size();
-        let batch_size = input.batch_size();
-        let nnz = indices.nnz;
-        assert_eq!(nnz, MAX_MOVES);
-        assert_eq!(nnz, 64);
+        let batch_size = Expr::Var;
+        let threads = (single_size / 4).min(1024) as i32;
+        let grid_dim = [Expr::Const(64), batch_size, Expr::Const(1)];
+        let block_dim = [threads, 1, 1].map(Expr::Const);
+        let shared_mem_bytes = Expr::Const(16 * threads);
 
-        if batch_size != indices.batch_size()
-            || batch_size != output.batch_size()
-            || weights.batch_size().is_some()
-            || biases.batch_size().is_some()
-        {
-            return Err(OperationError::MismatchedBatchSizes);
-        }
+        let layout = None;
+        let mutable = false;
 
-        let device = input.buf.device.clone();
+        let inputs = vec![
+            KernelInput::Slice { slice: weights, layout, mutable, batched: false, shape: self.weights.shape },
+            KernelInput::Slice { slice: input, layout, mutable, batched: true, shape: self.input.shape },
+            KernelInput::Slice { slice: indices, layout: Some(64), mutable, batched: true, shape: self.indices.shape },
+            KernelInput::Slice { slice: output_grad, layout, mutable, batched: true, shape: Shape::new(MAX_MOVES, 1) },
+            KernelInput::Slice { slice: input_grad, layout, mutable: true, batched: true, shape: self.input.shape },
+            KernelInput::Slice {
+                slice: weights_grad,
+                layout,
+                mutable: true,
+                batched: false,
+                shape: self.weights.shape,
+            },
+            KernelInput::Slice { slice: biases_grad, layout, mutable: true, batched: false, shape: self.biases.shape },
+        ];
 
-        unsafe {
-            let threads = (single_size / 4).min(512) as u32;
+        let args = KernelArgs { inputs, grid_dim, block_dim, shared_mem_bytes };
 
-            assert!(threads.is_power_of_two(), "hl size must be a power of 2");
+        let code = include_str!("select_affine/fwd.cu")
+            .lines()
+            .skip(4)
+            .map(|x| format!("{x}\n"))
+            .collect::<String>()
+            .replace("IN_SIZE", &single_size.to_string());
 
-            let func = device.get_custom_func_or_rtc("select_affine_fwd", || {
-                let kernel = include_str!("select_affine/fwd.cu");
-                format!("#define THREADS {threads}\n{kernel}")
-            })?;
+        let kernel = unsafe { Kernel::new("SelectAffineBwd".to_string(), code, args) };
 
-            let batch_size = batch_size.unwrap_or(1) as u32;
-            let grid_dim = (64, batch_size, 1);
-            let block_dim = (threads, 1, 1);
-            let cfg = LaunchConfig { grid_dim, block_dim, shared_mem_bytes: 4 * threads };
+        func.push(kernel.unwrap());
 
-            device
-                .stream()
-                .launch_builder(&func)
-                .arg(&(single_size as i32))
-                .arg(&(batch_size as i32))
-                .arg(&weights.buf.buf)
-                .arg(&biases.buf.buf)
-                .arg(&input.buf.buf)
-                .arg(&indices.buf.buf)
-                .arg(&mut output.buf.buf)
-                .launch(cfg)
-                .map_err(CudaError::Driver)?;
-        }
-
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-struct SelectAffineBwd {
-    input: TensorRef<CudaDevice>,
-    weights: TensorRef<CudaDevice>,
-    indices: TensorRef<CudaDevice>,
-    output_grad: TensorRef<CudaDevice>,
-    input_grad: TensorRef<CudaDevice>,
-    weights_grad: TensorRef<CudaDevice>,
-    biases_grad: TensorRef<CudaDevice>,
-}
-
-impl DeviceOperation<CudaDevice> for SelectAffineBwd {
-    fn opname(&self) -> String {
-        "SelectAffineBwd".to_string()
-    }
-
-    fn execute(&self) -> Result<(), OperationError<CudaError>> {
-        let output_grad = self.output_grad.dense();
-        let indices = self.indices.sparse();
-        let input = self.input.dense();
-        let weights = self.weights.dense();
-        let mut input_grad = self.input_grad.dense_mut();
-        let mut weights_grad = self.weights_grad.dense_mut();
-        let mut biases_grad = self.biases_grad.dense_mut();
-
-        let single_size = input_grad.single_size();
-        let batch_size = input_grad.batch_size();
-        let nnz = indices.nnz;
-        assert_eq!(nnz, MAX_MOVES);
-
-        if batch_size != indices.batch_size()
-            || batch_size != output_grad.batch_size()
-            || batch_size != input.batch_size()
-            || batch_size != input_grad.batch_size()
-            || weights.batch_size().is_some()
-            || weights_grad.batch_size().is_some()
-            || biases_grad.batch_size().is_some()
-        {
-            return Err(OperationError::MismatchedBatchSizes);
-        }
-
-        let device = output_grad.buf.device.clone();
-
-        unsafe {
-            let func = device
-                .get_custom_func_or_rtc("select_affine_bwd", || include_str!("select_affine/bwd.cu").to_string())?;
-
-            let threads = (single_size / 4).min(1024) as u32;
-            let batch_size = batch_size.unwrap_or(1) as u32;
-            let grid_dim = (64, batch_size, 1);
-            let cfg = LaunchConfig { grid_dim, block_dim: (threads, 1, 1), shared_mem_bytes: 16 * threads };
-
-            device
-                .stream()
-                .launch_builder(&func)
-                .arg(&(single_size as i32))
-                .arg(&(batch_size as i32))
-                .arg(&weights.buf.buf)
-                .arg(&input.buf.buf)
-                .arg(&indices.buf.buf)
-                .arg(&output_grad.buf.buf)
-                .arg(&mut input_grad.buf.buf)
-                .arg(&mut weights_grad.buf.buf)
-                .arg(&mut biases_grad.buf.buf)
-                .launch(cfg)
-                .map_err(CudaError::Driver)?;
-        }
-
-        Ok(())
+        func
     }
 }
