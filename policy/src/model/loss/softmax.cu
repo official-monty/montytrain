@@ -27,7 +27,6 @@ extern "C" __global__ void kernel(const int k, const float* input, float* output
         maximum = max(maximum, elems[i]);
     }
 
-    /* reduce max */
     maximum = max(maximum, __shfl_xor_sync(0xffffffff, maximum, 16));
     maximum = max(maximum, __shfl_xor_sync(0xffffffff, maximum, 8));
     maximum = max(maximum, __shfl_xor_sync(0xffffffff, maximum, 4));
@@ -42,7 +41,6 @@ extern "C" __global__ void kernel(const int k, const float* input, float* output
         denom += elems[i];
     }
 
-    /* reduce sum */
     denom += __shfl_xor_sync(0xffffffff, denom, 16);
     denom += __shfl_xor_sync(0xffffffff, denom, 8);
     denom += __shfl_xor_sync(0xffffffff, denom, 4);
