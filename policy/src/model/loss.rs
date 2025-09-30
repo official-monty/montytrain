@@ -63,8 +63,9 @@ impl GraphIROperationCompilable<CudaMarker> for OptimisedSoftmaxCrossEntropy {
         func.push(function::MaybeUpdateBatchSize { input: logits.clone(), output: output.clone() });
 
         let threads = 512;
+        let entries_per_block = threads / 32;
         let batch_size = Expr::Var;
-        let blocks = (batch_size.clone() + threads - 1) / threads;
+        let blocks = (batch_size.clone() + entries_per_block - 1) / entries_per_block;
         let grid_dim = [blocks, Expr::Const(1), Expr::Const(1)];
         let block_dim = [threads, 1, 1].map(Expr::Const);
         let shared_mem_bytes = Expr::Const(0);
@@ -83,9 +84,10 @@ impl GraphIROperationCompilable<CudaMarker> for OptimisedSoftmaxCrossEntropy {
 
         let code = include_str!("loss/softmax.cu")
             .lines()
-            .skip(4)
+            .skip(5)
             .map(|x| format!("{x}\n"))
             .collect::<String>()
+            .replace("THREADS", &threads.to_string())
             .replace("SIZE", &MAX_MOVES.to_string());
 
         let kernel = unsafe { Kernel::new("Softmax".to_string(), code, args) };

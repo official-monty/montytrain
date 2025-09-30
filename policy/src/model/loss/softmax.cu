@@ -1,34 +1,56 @@
 #ifndef STUFF
+#define THREADS 512;
 #define SIZE 64
 #endif
 
+constexpr int threads = THREADS;
+constexpr int per_block = threads / 32;
 constexpr int size = SIZE;
+constexpr int per_thread = size / 32;
 
 extern "C" __global__ void kernel(const int k, const float* input, float* output)
 {
-    const int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    const int entry = per_block * blockIdx.x + (threadIdx.x / 32);
+    const int widx = threadIdx.x % 32;
 
-    if (tid >= k)
+    if (entry >= k)
         return;
 
-    const float* thisColumn = input + size * tid;
-    float* thisOutput = output + size * tid;
+    float elems[per_thread];
 
-    float maximum = thisColumn[0];
+    elems[0] = input[widx + size * entry];
+    float maximum = elems[0];
 
-    for (int i = 1; i < size; i++) {
-        maximum = max(maximum, thisColumn[i]);
+    #pragma unroll
+    for (int i = 1; i < per_thread; i++) {
+        elems[i] = input[widx + 32 * i + size * entry];
+        maximum = max(maximum, elems[i]);
     }
 
-    float total = 0.0F;
+    /* reduce max */
+    maximum = max(maximum, __shfl_xor_sync(0xffffffff, maximum, 16));
+    maximum = max(maximum, __shfl_xor_sync(0xffffffff, maximum, 8));
+    maximum = max(maximum, __shfl_xor_sync(0xffffffff, maximum, 4));
+    maximum = max(maximum, __shfl_xor_sync(0xffffffff, maximum, 2));
+    maximum = max(maximum, __shfl_xor_sync(0xffffffff, maximum, 1));
 
-    for (int i = 0; i < size; i++) {
-        const float exp = expf(thisColumn[i] - maximum);
-        thisOutput[i] = exp;
-        total += exp;
+    float denom = 0.0F;
+
+    #pragma unroll
+    for (int i = 0; i < per_thread; i++) {
+        elems[i] = expf(elems[i] - maximum);
+        denom += elems[i];
     }
 
-    for (int i = 0; i < size; i++) {
-        thisOutput[i] /= total;
+    /* reduce sum */
+    denom += __shfl_xor_sync(0xffffffff, denom, 16);
+    denom += __shfl_xor_sync(0xffffffff, denom, 8);
+    denom += __shfl_xor_sync(0xffffffff, denom, 4);
+    denom += __shfl_xor_sync(0xffffffff, denom, 2);
+    denom += __shfl_xor_sync(0xffffffff, denom, 1);
+
+    #pragma unroll
+    for (int i = 0; i < per_thread; i++) {
+        output[widx + 32 * i + size * entry] = elems[i] / denom;
     }
 }
