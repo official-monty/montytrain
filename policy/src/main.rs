@@ -18,8 +18,9 @@ use bullet_cuda_backend::CudaDevice;
 use data::MontyDataLoader;
 
 fn main() {
-    let hl = 16384;
-    let dataloader = MontyDataLoader::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000, 8);
+    let hl = 256;
+    let dataloader = MontyDataLoader::new("data/policygen6.binpack", 1024, 4, 4);
+    //let dataloader = MontyDataLoader::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000, 4, 8);
 
     let device = CudaDevice::new(0).unwrap();
 

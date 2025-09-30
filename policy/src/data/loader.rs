@@ -17,8 +17,8 @@ pub struct MontyDataLoader {
 }
 
 impl MontyDataLoader {
-    pub fn new(path: &str, buffer_size_mb: usize, threads: usize) -> Self {
-        Self { reader: DataReader::new(path, buffer_size_mb), threads }
+    pub fn new(path: &str, buffer_size_mb: usize, reader_threads: usize, loader_threads: usize) -> Self {
+        Self { reader: DataReader::new(path, buffer_size_mb, reader_threads), threads: loader_threads }
     }
 }
 

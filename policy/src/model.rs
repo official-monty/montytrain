@@ -1,3 +1,4 @@
+mod loss;
 mod select_affine;
 
 use acyclib::{
@@ -28,7 +29,7 @@ pub fn make(device: CudaDevice, hl: usize) -> (Graph<CudaDevice>, GraphNodeId) {
     let logits = builder.apply(select_affine::SelectAffine::new(l1, hl, moves));
 
     let ones = builder.new_constant(Shape::new(1, MAX_MOVES), &[1.0; MAX_MOVES]);
-    let loss = logits.softmax_crossentropy_loss(targets);
+    let loss = builder.apply(loss::OptimisedSoftmaxCrossEntropy::new(logits, targets));
     let _ = ones.matmul(loss);
 
     let node = GraphNodeId::new(loss.annotated_node().idx, GraphNodeIdTy::Ancillary(0));
