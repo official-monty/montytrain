@@ -158,7 +158,7 @@ impl GraphIROperationCompilable<CudaMarker> for SelectAffine {
 
         let args = KernelArgs { inputs, grid_dim, block_dim, shared_mem_bytes };
 
-        let code = include_str!("select_affine/fwd.cu")
+        let code = include_str!("select_affine/bwd.cu")
             .lines()
             .skip(4)
             .map(|x| format!("{x}\n"))
