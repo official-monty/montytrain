@@ -1,10 +1,9 @@
+mod loss;
 mod select_affine;
 
-use bullet_core::{
-    graph::{
-        builder::{GraphBuilder, Shape},
-        Graph, GraphNodeId, GraphNodeIdTy,
-    },
+use acyclib::{
+    device::tensor::Shape,
+    graph::{builder::GraphBuilder, Graph, GraphNodeId, GraphNodeIdTy},
     trainer::dataloader::PreparedBatchDevice,
 };
 use bullet_cuda_backend::CudaDevice;
@@ -30,7 +29,7 @@ pub fn make(device: CudaDevice, hl: usize) -> (Graph<CudaDevice>, GraphNodeId) {
     let logits = builder.apply(select_affine::SelectAffine::new(l1, hl, moves));
 
     let ones = builder.new_constant(Shape::new(1, MAX_MOVES), &[1.0; MAX_MOVES]);
-    let loss = logits.softmax_crossentropy_loss(targets);
+    let loss = builder.apply(loss::OptimisedSoftmaxCrossEntropy::new(logits, targets));
     let _ = ones.matmul(loss);
 
     let node = GraphNodeId::new(loss.annotated_node().idx, GraphNodeIdTy::Ancillary(0));
@@ -53,7 +52,7 @@ pub fn eval(graph: &mut Graph<CudaDevice>, node: GraphNodeId, fen: &str) {
 
     let data = prepare(&[point], 1);
 
-    let mut on_device = PreparedBatchDevice::new(graph.device(), &data).unwrap();
+    let mut on_device = PreparedBatchDevice::new(vec![graph.device()], &data).unwrap();
 
     on_device.load_into_graph(graph).unwrap();
 

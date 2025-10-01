@@ -1,125 +1,71 @@
-mod inputs;
-mod loader;
-mod moves;
-mod preparer;
-mod trainer;
+pub mod data;
+pub mod inputs;
+pub mod model;
 
-use bullet::{
-    nn::{
-        optimiser::{AdamWParams, Optimiser},
-        Activation, ExecutionContext, Graph, NetworkBuilder, Shape,
-    },
+use acyclib::{
+    device::Device,
     trainer::{
-        logger,
-        save::{Layout, QuantTarget, SavedFormat},
-        schedule::{lr, wdl, TrainingSchedule, TrainingSteps},
-        settings::LocalSettings,
-        NetworkTrainer,
+        optimiser::{
+            adam::{AdamW, AdamWParams},
+            Optimiser,
+        },
+        schedule::{TrainingSchedule, TrainingSteps},
+        Trainer,
     },
 };
+use bullet_cuda_backend::CudaDevice;
 
-use trainer::Trainer;
-
-const ID: &str = "policy001";
+use data::MontyDataLoader;
 
 fn main() {
-    //let data_preparer = preparer::DataPreparer::new("data/policygen6.binpack", 4096);
-    let data_preparer = preparer::DataPreparer::new(
-        "/home/privateclient/monty_value_training/interleaved.binpack",
-        96000,
-    );
+    let hl = 16384;
+    let dataloader = MontyDataLoader::new("/home/privateclient/monty_value_training/interleaved.binpack", 96000, 4, 8);
 
-    let size = 12288;
+    let device = CudaDevice::new(0).unwrap();
 
-    let graph = network(size);
+    let (graph, node) = model::make(device, hl);
 
-    let optimiser_params = AdamWParams {
-        decay: 0.01,
-        beta1: 0.9,
-        beta2: 0.999,
-        min_weight: -0.99,
-        max_weight: 0.99,
-    };
+    let params = AdamWParams { decay: 0.01, beta1: 0.9, beta2: 0.999, min_weight: -0.99, max_weight: 0.99 };
+    let optimiser = Optimiser::<_, _, AdamW<_>>::new(graph, params).unwrap();
 
-    let mut trainer = Trainer {
-        optimiser: Optimiser::new(graph, optimiser_params).unwrap(),
-    };
+    let mut trainer = Trainer { optimiser, state: () };
+
+    let save_rate = 40;
+    let end_superbatch = 800;
+    let initial_lr = 0.001;
+    let final_lr = 0.00001;
+
+    let steps = TrainingSteps { batch_size: 16384, batches_per_superbatch: 6104, start_superbatch: 1, end_superbatch };
 
     let schedule = TrainingSchedule {
-        net_id: ID.to_string(),
-        eval_scale: 400.0,
-        steps: TrainingSteps {
-            batch_size: 16_384,
-            batches_per_superbatch: 6104,
-            start_superbatch: 1,
-            end_superbatch: 600,
-        },
-        wdl_scheduler: wdl::ConstantWDL { value: 0.0 },
-        lr_scheduler: lr::ExponentialDecayLR {
-            initial_lr: 0.001,
-            final_lr: 0.00001,
-            final_superbatch: 600,
-        },
-        save_rate: 40,
-    };
-
-    let settings = LocalSettings {
-        threads: 4,
-        test_set: None,
-        output_directory: "checkpoints",
-        batch_queue_size: 32,
-    };
-
-    logger::clear_colours();
-    println!("{}", logger::ansi("Beginning Training", "34;1"));
-    schedule.display();
-    settings.display();
-
-    trainer.train_custom(
-        &data_preparer,
-        &Option::<preparer::DataPreparer>::None,
-        &schedule,
-        &settings,
-        |sb, trainer, schedule, _| {
-            if schedule.should_save(sb) {
-                trainer
-                    .save_weights_portion(
-                        &format!("checkpoints/{ID}-{sb}.network"),
-                        &[
-                            SavedFormat::new("l0w", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new("l0b", QuantTarget::Float, Layout::Normal),
-                            SavedFormat::new(
-                                "l1w",
-                                QuantTarget::Float,
-                                Layout::Transposed(Shape::new(moves::NUM_MOVES, size / 2)),
-                            ),
-                            SavedFormat::new("l1b", QuantTarget::Float, Layout::Normal),
-                        ],
-                    )
-                    .unwrap();
+        steps,
+        log_rate: 64,
+        lr_schedule: Box::new(|_, sb| {
+            if sb >= end_superbatch {
+                return final_lr;
             }
-        },
-    );
-}
 
-fn network(size: usize) -> Graph {
-    let builder = NetworkBuilder::default();
+            let lambda = sb as f32 / end_superbatch as f32;
+            initial_lr * (final_lr / initial_lr).powf(lambda)
+        }),
+    };
 
-    let inputs = builder.new_sparse_input(
-        "inputs",
-        Shape::new(inputs::INPUT_SIZE, 1),
-        inputs::MAX_ACTIVE,
-    );
-    let mask = builder.new_sparse_input("mask", Shape::new(moves::NUM_MOVES, 1), moves::MAX_MOVES);
-    let dist = builder.new_dense_input("dist", Shape::new(moves::MAX_MOVES, 1));
+    trainer
+        .train_custom(
+            schedule,
+            dataloader,
+            |_, _, _, _| {},
+            |trainer, superbatch| {
+                if superbatch % save_rate == 0 || superbatch == steps.end_superbatch {
+                    println!("Saving Checkpoint");
+                    let dir = format!("checkpoints/policy-{superbatch}");
+                    let _ = std::fs::create_dir(&dir);
+                    trainer.optimiser.write_to_checkpoint(&dir).unwrap();
+                    model::save_quantised(&trainer.optimiser.graph, &format!("{dir}/quantised.bin")).unwrap();
+                }
+            },
+        )
+        .unwrap();
 
-    let l0 = builder.new_affine("l0", inputs::INPUT_SIZE, size);
-    let l1 = builder.new_affine("l1", size / 2, moves::NUM_MOVES);
-
-    let mut out = l0.forward(inputs).activate(Activation::CReLU);
-    out = out.pairwise_mul();
-    out = l1.forward(out);
-    out.masked_softmax_crossentropy_loss(dist, mask);
-
-    builder.build(ExecutionContext::default())
+    model::eval(&mut trainer.optimiser.graph, node, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }

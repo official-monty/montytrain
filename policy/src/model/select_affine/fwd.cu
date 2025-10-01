@@ -1,20 +1,12 @@
-#ifndef THREADS
+#ifndef STUFF
 #define THREADS 512
+#define IN_SIZE 1024
 #endif
 
-__device__ void warpReduce(volatile float* sdata, int tid)
-{
-    sdata[tid] += sdata[tid + 32];
-    sdata[tid] += sdata[tid + 16];
-    sdata[tid] += sdata[tid + 8];
-    sdata[tid] += sdata[tid + 4];
-    sdata[tid] += sdata[tid + 2];
-    sdata[tid] += sdata[tid + 1];
-}
+constexpr int threads = THREADS;
+constexpr int in_size = IN_SIZE;
 
 extern "C" __global__ void kernel(
-    const int in_size,
-    const int batch_size,
     const float* weights,
     const float* biases,
     const float* input,
@@ -23,6 +15,7 @@ extern "C" __global__ void kernel(
 ) {
     extern __shared__ float sdata[]; 
 
+    const int batch_size = gridDim.y;
     const int loc_in_batch = blockIdx.y;
     const int loc_in_moves = blockIdx.x;
     const int tid = threadIdx.x;
@@ -35,7 +28,9 @@ extern "C" __global__ void kernel(
     if (move != -1)
     {
         float local = 0.0F;
-        for (int idx = tid; idx < in_size / 4; idx += blockDim.x)
+
+        #pragma unroll
+        for (int idx = tid; idx < in_size / 4; idx += threads)
         {
             const float4 tw = tW[idx];
             const float4 ti = tI[idx];
@@ -45,19 +40,25 @@ extern "C" __global__ void kernel(
         sdata[tid] = local;
         __syncthreads();
 
-        if (THREADS >= 1024) { if (tid < 512) sdata[tid] += sdata[tid + 512]; __syncthreads(); }
-        if (THREADS >= 512) { if (tid < 256) sdata[tid] += sdata[tid + 256]; __syncthreads(); }
-        if (THREADS >= 256) { if (tid < 128) sdata[tid] += sdata[tid + 128]; __syncthreads(); }
-        if (THREADS >= 128) { if (tid < 64) sdata[tid] += sdata[tid + 64]; __syncthreads(); }
+        if constexpr (threads >= 1024) { if (tid < 512) sdata[tid] += sdata[tid + 512]; __syncthreads(); }
+        if constexpr (threads >= 512) { if (tid < 256) sdata[tid] += sdata[tid + 256]; __syncthreads(); }
+        if constexpr (threads >= 256) { if (tid < 128) sdata[tid] += sdata[tid + 128]; __syncthreads(); }
+        if constexpr (threads >= 128) { if (tid < 64) sdata[tid] += sdata[tid + 64]; __syncthreads(); }
 
         if (tid < 32)
         {
-            warpReduce(sdata, tid);
-        }
+            float partial = sdata[tid];
+            if constexpr (threads >= 64) { partial += sdata[tid + 32]; }
+            partial += __shfl_down_sync(0xffffffff, partial, 16);
+            partial += __shfl_down_sync(0xffffffff, partial, 8);
+            partial += __shfl_down_sync(0xffffffff, partial, 4);
+            partial += __shfl_down_sync(0xffffffff, partial, 2);
+            partial += __shfl_down_sync(0xffffffff, partial, 1);
 
-        if (tid == 0)
-        {
-            output[locmb] = sdata[0] + biases[move];
+            if (tid == 0)
+            {
+                output[locmb] = partial + biases[move];
+            }
         }
     }
     else if (tid == 0)
